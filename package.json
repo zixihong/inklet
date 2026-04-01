@@ -1,0 +1,58 @@
+{
+  "name": "image2ascii",
+  "version": "1.0.0",
+  "description": "Convert images to colored ASCII art — core library, React component, and CLI",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "types": "./dist/src/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/src/react/index.js",
+      "types": "./dist/src/react/index.d.ts"
+    }
+  },
+  "bin": {
+    "image2ascii": "./dist/bin/cli.js"
+  },
+  "files": [
+    "dist",
+    "src/editor/template.html"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=18.3.0"
+  },
+  "keywords": [
+    "ascii",
+    "ascii-art",
+    "image",
+    "image-to-ascii",
+    "react",
+    "cli",
+    "color"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "sharp": "^0.34.5"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "react": "^19.2.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.1"
+  }
+}
