@@ -21,12 +21,14 @@ Options:
   --invert               Invert luminance mapping
   --remove-bg            Remove background (bright/dark pixels become transparent)
   --aspect <n>           Character aspect ratio (default: 1.8)
+  -s, --save             Save ascii-config.json directly (skip editor)
   -p, --print            Print to terminal instead of opening editor
   -h, --help             Show this help message
 
 Examples:
   inklet photo.png -w 100
   inklet photo.png -w 80 -d src/assets
+  inklet photo.png -w 120 --save
   inklet photo.png --print
   inklet photo.png --print -o ascii.json
 `.trim()
@@ -43,6 +45,7 @@ async function main() {
       invert: { type: "boolean", default: false },
       "remove-bg": { type: "boolean", default: false },
       aspect: { type: "string" },
+      save: { type: "boolean", short: "s", default: false },
       print: { type: "boolean", short: "p", default: false },
       editor: { type: "boolean", short: "e", default: false },
       help: { type: "boolean", short: "h", default: false },
@@ -97,6 +100,18 @@ async function main() {
       )
     }
 
+    return
+  }
+
+  // --save: write ascii-config.json directly, skip editor
+  if (values.save) {
+    const outputDir = values["output-dir"]
+      ? resolve(values["output-dir"])
+      : process.cwd()
+    const outPath = resolve(outputDir, "ascii-config.json")
+    const config = { data, regionConfig: { regions: [] } }
+    writeFileSync(outPath, JSON.stringify(config, null, 2))
+    console.log(`Saved ${data.cols}x${data.rows} ASCII to ${outPath}`)
     return
   }
 

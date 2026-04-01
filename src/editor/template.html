@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ASCII Region Editor</title>
+<title>Inklet — Region Editor</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #111; color: #ccc; font-family: monospace; margin: 0; display: flex; height: 100vh; overflow: hidden; }
@@ -104,7 +104,7 @@
 </div>
 
 <div id="sidebar">
-  <div style="font-size:14px;color:#fff;font-weight:bold;">Region Editor</div>
+  <div style="font-size:14px;color:#fff;font-weight:bold;">Inklet</div>
 
   <div class="section-title">Brush Size</div>
   <div class="brush-row">
@@ -133,7 +133,7 @@
   <div id="instructions">
     <strong style="color:#999">Paint</strong><br>
     <kbd>Shift</kbd> + hover to <span style="color:#0f0">paint outline</span><br>
-    <kbd>Ctrl</kbd> + hover to <span style="color:#f66">erase</span><br>
+    <kbd>X</kbd> + hover to <span style="color:#f66">erase</span><br>
     Draw a closed outline → auto-fills interior<br><br>
     <strong style="color:#999">Controls</strong><br>
     <kbd>F</kbd> fill inside outline<br>
@@ -757,14 +757,13 @@
     // Paint/erase first (before any DOM reads)
     if (isPainting && e.shiftKey) {
       paintBrush(r, c);
-    } else if (isErasing && e.ctrlKey) {
+    } else if (isErasing) {
       eraseBrush(r, c);
     } else if (isPainting && !e.shiftKey) {
       endStroke();
       isPainting = false;
-    } else if (isErasing && !e.ctrlKey) {
-      endStroke();
-      isErasing = false;
+    } else if (false) {
+      // erase stop handled by keyup
     }
 
     // Always redraw overlay (canvas is fast)
@@ -775,7 +774,7 @@
       const regionAtCell = cellRegionMap[ck(r, c)];
       const regionName = regionAtCell ? (getRegion(regionAtCell)?.label || regionAtCell) : '-';
       const modeSpan = e.shiftKey ? '<span class="mode">hold to paint</span>'
-        : e.ctrlKey ? '<span class="erase-mode">hold to erase</span>'
+        : isErasing ? '<span class="erase-mode">ERASING</span>'
         : 'idle';
       statusBar.innerHTML = 'row ' + r + ', col ' + c + ' | region: ' + regionName + '<br>Mode: ' + modeSpan;
     }
@@ -811,16 +810,15 @@
       return;
     }
 
-    // Undo (must be before Ctrl-erase check)
+    // Undo
     if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       undo();
       return;
     }
 
-    // Ctrl = erase mode (only bare Ctrl, not Ctrl+key combos)
-    if (e.key === 'Control' && !isErasing && !isPainting) {
-      e.preventDefault();
+    // X = erase mode
+    if (e.key === 'x' && !isErasing && !isPainting && !e.ctrlKey && !e.metaKey) {
       isErasing = true;
       const regionAtCursor = cursorRow >= 0 ? cellRegionMap[ck(cursorRow, cursorCol)] : activeRegionId;
       startStroke(regionAtCursor || activeRegionId || 'unknown', 'erase');
@@ -891,15 +889,13 @@
       isPainting = false;
       scheduleOverlayRedraw();
     }
-    if (e.key === 'Control' && isErasing) {
+    if (e.key === 'x' && isErasing) {
       endStroke();
       isErasing = false;
       scheduleOverlayRedraw();
     }
   });
 
-  // Prevent context menu
-  gridEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
   // --- Export ---
   // Run-length encode cells: [row, startCol, endCol] per run
