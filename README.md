@@ -1,0 +1,319 @@
+# Inklet
+
+Turn any image into interactive, colored ASCII art for the web.
+
+Inklet converts raster images (PNG, JPG, WebP, etc.) into rich ASCII art with full color, then gives you a visual editor to define interactive regions. Drop the output into a React component and your ASCII art becomes clickable, hoverable, and alive.
+
+<!-- TODO: demo video -->
+
+## Why Inklet
+
+ASCII art is usually static and monochrome. Inklet makes it dynamic:
+
+- **Full color** — every character retains the color of the original pixel
+- **Interactive regions** — paint areas in the visual editor, then hook up hover effects and click handlers in your app
+- **Visual editor** — preview your ASCII art in the browser, toggle background removal and color modes live, paint regions with a brush tool, and export when you're happy
+- **Compact output** — run-length encoded regions and a deduplicated color palette keep the JSON small
+
+## Install
+
+```bash
+npm install inklet
+```
+
+Requires Node.js >= 18.3.0. React >= 18 is an optional peer dependency (only needed if you use `inklet/react`).
+
+## Quick Start
+
+### 1. Convert an image
+
+```bash
+npx inklet photo.png -w 100
+```
+
+This opens the visual editor in your browser.
+
+### 2. Tweak settings in the editor
+
+The sidebar has live toggles for:
+- **Remove Background** — strips bright/dark pixels so only the subject remains
+- **Invert** — flips the luminance-to-character mapping
+- **Color Mode** — switch between color, grayscale, and monochrome
+
+Changes re-render instantly. No need to re-run the CLI.
+
+### 3. Paint regions
+
+Click **+ New Region**, give it a label (e.g. "Logo", "Face"), then hold **Shift** and drag to paint characters into that region. These regions are what make the ASCII art interactive later.
+
+### 4. Export
+
+Click **Save to Project**. You get an `ascii-config.json` file.
+
+### 5. Render in React
+
+```tsx
+import { AsciiImage } from 'inklet/react'
+import config from './ascii-config.json'
+
+function Hero() {
+  return (
+    <AsciiImage
+      config={config}
+      fontSize="8px"
+      regionHoverEffect={{ colorBoost: 1.5, underline: true }}
+      onRegionClick={(id, region) => console.log(region.label)}
+    />
+  )
+}
+```
+
+## CLI Reference
+
+```
+inklet <input> [options]
+```
+
+| Option | Description | Default |
+|---|---|---|
+| `-w, --width <n>` | Number of output columns | `120` |
+| `-o, --output <path>` | Write raw ASCII data JSON to file | — |
+| `-d, --output-dir <dir>` | Directory for output files | cwd |
+| `--chars <ramp>` | Custom character density ramp | 70-char detailed |
+| `--color-mode <mode>` | `color`, `grayscale`, or `none` | `color` |
+| `--invert` | Invert luminance mapping | `false` |
+| `--remove-bg` | Remove bright/dark background pixels | `false` |
+| `--aspect <n>` | Character aspect ratio (height/width) | `1.8` |
+| `-s, --save` | Save `ascii-config.json` directly, skip editor | `false` |
+| `-p, --print` | Print colored ASCII to terminal (ANSI) | `false` |
+
+### Examples
+
+```bash
+# Open the editor at 80 columns, output to src/assets/
+inklet photo.png -w 80 -d src/assets
+
+# Preview in terminal
+inklet photo.png -w 60 --print
+
+# Batch export, no editor
+inklet photo.png -w 120 --remove-bg --save
+
+# Terminal preview + save raw data
+inklet photo.png --print -o ascii-data.json
+```
+
+## Editor
+
+The editor launches automatically when you run `inklet` without `--save` or `--print`. It's a local web UI served from a temporary HTTP server.
+
+### Display toggles
+
+Toggle **Remove Background**, **Invert**, and **Color Mode** in the sidebar. Each change re-generates the ASCII art server-side using the original image — what you see is what gets exported.
+
+### Region painting
+
+Regions let you mark areas of the ASCII art as interactive. In your app, you can attach hover effects and click handlers to each region.
+
+| Action | Control |
+|---|---|
+| Paint | Hold **Shift** + drag |
+| Erase | Hold **X** + drag |
+| Brush size | **[** / **]** or slider |
+| Fill outline | **F** (after drawing a closed shape) |
+| Select region | Click sidebar card or press **1-8** |
+| Delete region | **Delete** / **Backspace** |
+| Undo | **Ctrl+Z** |
+
+Draw a closed outline and Inklet auto-fills the interior. The fill also patches small gaps in the outline.
+
+### Export
+
+Click **Save to Project**. The save path is editable in the sidebar. The exported `ascii-config.json` contains both the ASCII data and region definitions.
+
+## Output Format
+
+The exported `ascii-config.json`:
+
+```json
+{
+  "data": {
+    "cols": 100,
+    "rows": 56,
+    "chars": "  ..::##@@%% ...",
+    "palette": ["#1a1a1a", "#ff3300", "#2b5e8c"],
+    "colorIndices": [0, 0, 1, 1, 2, 2, 0, 0]
+  },
+  "regionConfig": {
+    "regions": [
+      {
+        "id": "region-1",
+        "label": "Face",
+        "runs": [[10, 20, 35], [11, 19, 36]]
+      }
+    ]
+  }
+}
+```
+
+### `data`
+
+| Field | Description |
+|---|---|
+| `cols` / `rows` | Grid dimensions |
+| `chars` | Flat row-major string of ASCII characters. Character at row `r`, column `c` is `chars[r * cols + c]`. |
+| `palette` | Deduplicated hex color array |
+| `colorIndices` | Per-character index into `palette`. Color of character `i` is `palette[colorIndices[i]]`. |
+
+### `regionConfig.regions`
+
+Each region has:
+
+| Field | Description |
+|---|---|
+| `id` | Unique identifier (e.g. `"region-1"`) |
+| `label` | Human-readable name from the editor |
+| `runs` | Run-length encoded cells: `[row, startCol, endCol]` per run |
+
+## React Component
+
+```tsx
+import { AsciiImage } from 'inklet/react'
+```
+
+### Props
+
+| Prop | Type | Description |
+|---|---|---|
+| `config` | `AsciiConfig` | The imported `ascii-config.json` |
+| `data` | `AsciiData` | Alternative to `config` — just the ASCII data, no regions |
+| `fontSize` | `string \| number` | Font size (default `'10px'`) |
+| `lineHeight` | `number` | Line height multiplier (default `1.15`) |
+| `backgroundColor` | `string` | Background color (default `'transparent'`) |
+| `colorBoost` | `number` | Brightness multiplier for all colors (default `1.0`) |
+| `className` | `string` | CSS class on the outer `<pre>` |
+| `style` | `CSSProperties` | Inline styles on the outer `<pre>` |
+
+### Region hover effects
+
+| Prop | Type | Description |
+|---|---|---|
+| `regionHoverEffect` | `RegionHoverEffect` | Default hover effect for all regions |
+| `regionEffects` | `Record<string, RegionHoverEffect>` | Per-region overrides, keyed by region ID |
+
+`RegionHoverEffect` options:
+
+| Field | Description |
+|---|---|
+| `color` | Override color on hover (e.g. `'#00ff00'`) |
+| `colorBoost` | Brightness multiplier on hover (overrides `color`) |
+| `underline` | Add underline decoration |
+| `label` | Replace characters with repeating label text |
+
+### Callbacks
+
+| Prop | Type | Description |
+|---|---|---|
+| `onRegionClick` | `(id, region) => void` | Fires when a region is clicked |
+| `onRegionHover` | `(id \| null, region) => void` | Fires on region enter/leave |
+| `onCharacterClick` | `(info: CharInfo) => void` | Fires on any character click |
+| `onCharacterHover` | `(info \| null) => void` | Fires on any character hover |
+
+`CharInfo` gives you `{ row, col, char, color, region }` for the exact character under the cursor.
+
+### Example with all features
+
+```tsx
+<AsciiImage
+  config={config}
+  fontSize="8px"
+  colorBoost={1.2}
+  regionHoverEffect={{ colorBoost: 1.8, underline: true }}
+  regionEffects={{
+    'region-1': { label: 'CLICK ME ', color: '#ff0' },
+    'region-2': { colorBoost: 2.0 },
+  }}
+  onRegionClick={(id, region) => {
+    console.log(`Clicked: ${region.label}`)
+  }}
+  onRegionHover={(id, region) => {
+    setTooltip(region?.label ?? null)
+  }}
+  onCharacterClick={(info) => {
+    console.log(`${info.char} at (${info.row}, ${info.col})`)
+  }}
+/>
+```
+
+## Library API
+
+Use Inklet programmatically without the CLI:
+
+```ts
+import { generateAscii, buildRegionMap, segmentRegions } from 'inklet'
+```
+
+### `generateAscii(input, options?)`
+
+Convert an image to ASCII data.
+
+```ts
+const data = await generateAscii('photo.png', {
+  width: 100,
+  colorMode: 'color',
+  removeBackground: true,
+})
+```
+
+Returns an `AsciiData` object.
+
+### `segmentRegions(data, options?)`
+
+Auto-detect regions by color similarity using flood fill.
+
+```ts
+const { regionMap, regions } = segmentRegions(data, {
+  similarity: 0.15,
+  minSize: 20,
+})
+```
+
+### `buildRegionMap(data, regionConfig)`
+
+Expand a `regionConfig` (from the editor JSON) into a flat region map.
+
+```ts
+import config from './ascii-config.json'
+const { regionMap, regions } = buildRegionMap(config.data, config.regionConfig)
+// regionMap[i] = "region-1" | null
+```
+
+### Character ramps
+
+```ts
+import { RAMP_DETAILED, RAMP_SIMPLE, RAMP_BLOCKS } from 'inklet'
+```
+
+| Ramp | Characters | Use case |
+|---|---|---|
+| `RAMP_DETAILED` | 70 chars: `$@B%8&WM#*oahk...` | High detail (default) |
+| `RAMP_SIMPLE` | 10 chars: ` .:-=+*#%@` | Low resolution |
+| `RAMP_BLOCKS` | 5 chars: ` ░▒▓█` | Block/pixel style |
+
+Pass a custom ramp string to `generateAscii({ characterSet: '...' })` or `--chars` on the CLI.
+
+## How It Works
+
+1. **Image loading** — Sharp reads the image and resizes it to the target column count. Row count is derived from the image aspect ratio and the character aspect ratio (monospace characters are taller than wide).
+
+2. **Pixel mapping** — each pixel's luminance (`0.299R + 0.587G + 0.114B`) maps to a character from the density ramp. Dark pixels get dense characters (`@`, `#`), light pixels get sparse ones (`.`, ` `).
+
+3. **Color extraction** — each pixel's RGB value is converted to hex. The full color array is deduplicated into a compact palette with an index array.
+
+4. **Region editing** — the visual editor renders the ASCII grid and lets you paint named regions over it. Regions are stored as run-length encoded cell ranges.
+
+5. **React rendering** — the `<AsciiImage>` component groups consecutive same-color, same-region characters into single `<span>` elements (reducing DOM nodes by ~10x), applies hover effects via inline styles with CSS transitions, and fires callbacks based on region membership.
+
+## License
+
+MIT
