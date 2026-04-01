@@ -22,7 +22,7 @@ export async function launchEditor(data, options = {}) {
         templateHtml = readFileSync(fallbackPath, "utf-8");
     }
     // Inject ASCII data into the template
-    const dataScript = `<script>window.__ASCII_DATA__ = ${JSON.stringify(data)};</script>`;
+    const dataScript = `<script>window.__ASCII_DATA__ = ${JSON.stringify(data)};window.__OUTPUT_DIR__ = ${JSON.stringify(outputDir)};</script>`;
     const html = templateHtml.replace("</head>", `${dataScript}\n</head>`);
     return new Promise((resolvePromise) => {
         const server = createServer((req, res) => {
@@ -31,9 +31,11 @@ export async function launchEditor(data, options = {}) {
                 req.on("data", (chunk) => { body += chunk.toString(); });
                 req.on("end", () => {
                     try {
-                        const regionConfig = JSON.parse(body);
+                        const { regionConfig, savePath } = JSON.parse(body);
                         const config = { data, regionConfig };
-                        const outPath = resolve(outputDir, "ascii-config.json");
+                        const outPath = savePath
+                            ? resolve(outputDir, savePath)
+                            : resolve(outputDir, "ascii-config.json");
                         writeFileSync(outPath, JSON.stringify(config, null, 2));
                         res.writeHead(200, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ ok: true, path: outPath }));

@@ -7,10 +7,10 @@ import { generateAscii, launchEditor } from "../src/index.js"
 import type { GenerateOptions } from "../src/types.js"
 
 const HELP = `
-image2ascii — Convert images to colored ASCII art
+inklet — Convert images to colored ASCII art
 
 Usage:
-  image2ascii <input> [options]
+  inklet <input> [options]
 
 Options:
   -w, --width <n>        Number of columns (default: 120)
@@ -25,10 +25,10 @@ Options:
   -h, --help             Show this help message
 
 Examples:
-  image2ascii photo.png -w 100
-  image2ascii photo.png -w 80 -d src/assets
-  image2ascii photo.png --print
-  image2ascii photo.png --print -o ascii.json
+  inklet photo.png -w 100
+  inklet photo.png -w 80 -d src/assets
+  inklet photo.png --print
+  inklet photo.png --print -o ascii.json
 `.trim()
 
 async function main() {

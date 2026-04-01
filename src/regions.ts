@@ -34,7 +34,27 @@ export function buildRegionMap(
     let rSum = 0, gSum = 0, bSum = 0
     let count = 0
 
-    if (manualRegion.cells && manualRegion.cells.length > 0) {
+    if (manualRegion.runs && manualRegion.runs.length > 0) {
+      // Run-length encoded: [row, startCol, endCol] per run
+      for (const [r, startC, endC] of manualRegion.runs) {
+        for (let c = startC; c <= endC; c++) {
+          if (r < 0 || r >= rows || c < 0 || c >= cols) continue
+          const idx = r * cols + c
+          regionMap[idx] = manualRegion.id
+
+          if (r < minR) minR = r
+          if (r > maxR) maxR = r
+          if (c < minC) minC = c
+          if (c > maxC) maxC = c
+
+          const hex = palette[colorIndices[idx]]
+          rSum += parseInt(hex.slice(1, 3), 16)
+          gSum += parseInt(hex.slice(3, 5), 16)
+          bSum += parseInt(hex.slice(5, 7), 16)
+          count++
+        }
+      }
+    } else if (manualRegion.cells && manualRegion.cells.length > 0) {
       // Cell-based: directly assign each cell
       for (const [r, c] of manualRegion.cells) {
         if (r < 0 || r >= rows || c < 0 || c >= cols) continue

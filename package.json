@@ -1,7 +1,7 @@
 {
-  "name": "image2ascii",
+  "name": "inklet",
   "version": "1.0.0",
-  "description": "Convert images to colored ASCII art — core library, React component, and CLI",
+  "description": "Turn any image into interactive, colored ASCII art for the web",
   "type": "module",
   "exports": {
     ".": {
@@ -14,7 +14,7 @@
     }
   },
   "bin": {
-    "image2ascii": "./dist/bin/cli.js"
+    "inklet": "./dist/bin/cli.js"
   },
   "files": [
     "dist",
@@ -28,10 +28,12 @@
     "node": ">=18.3.0"
   },
   "keywords": [
+    "inklet",
     "ascii",
     "ascii-art",
     "image",
     "image-to-ascii",
+    "interactive",
     "react",
     "cli",
     "color"

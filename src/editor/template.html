@@ -65,12 +65,6 @@
   }
   .export-btn:hover { background: #0d0; }
 
-  .download-btn {
-    background: #333; color: #ccc; border: 1px solid #555; padding: 8px 16px; cursor: pointer;
-    font-family: monospace; font-size: 12px; width: 100%; border-radius: 4px;
-    transition: background 0.15s;
-  }
-  .download-btn:hover { background: #444; }
 
   #status-bar {
     background: #0a0a0a; border: 1px solid #333; padding: 6px 8px; font-size: 11px;
@@ -98,17 +92,15 @@
   }
   .toast.visible { opacity: 1; }
 
-  /* Brush cursor preview */
-  .brush-cursor {
-    position: fixed; pointer-events: none; border: 1px solid rgba(255,255,255,0.4);
-    border-radius: 2px; z-index: 999; display: none;
-  }
 </style>
 </head>
 <body>
 
 <div id="grid-container">
-  <pre id="grid"></pre>
+  <div id="grid-wrapper" style="position:relative;display:inline-block;">
+    <pre id="grid"></pre>
+    <canvas id="overlay-canvas" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+  </div>
 </div>
 
 <div id="sidebar">
@@ -125,8 +117,13 @@
   <div id="region-list"></div>
   <button class="new-region-btn" id="new-region-btn">+ New Region</button>
 
+  <div class="section-title">Save Path</div>
+  <input type="text" id="save-path" value="ascii-config.json"
+    style="width:100%;background:#222;color:#0f0;border:1px solid #444;padding:6px 8px;
+    font-family:monospace;font-size:11px;border-radius:3px;outline:none;cursor:text;">
+  <div style="font-size:9px;color:#555;margin-top:2px;" id="save-path-hint"></div>
+
   <button class="export-btn" id="export-btn">Save to Project</button>
-  <button class="download-btn" id="download-btn">Download regions.json</button>
 
   <div id="status-bar">
     Cursor: -<br>
@@ -136,7 +133,7 @@
   <div id="instructions">
     <strong style="color:#999">Paint</strong><br>
     <kbd>Shift</kbd> + hover to <span style="color:#0f0">paint outline</span><br>
-    <kbd>Alt</kbd> + hover to <span style="color:#f66">erase</span><br>
+    <kbd>Ctrl</kbd> + hover to <span style="color:#f66">erase</span><br>
     Draw a closed outline → auto-fills interior<br><br>
     <strong style="color:#999">Controls</strong><br>
     <kbd>F</kbd> fill inside outline<br>
@@ -148,7 +145,6 @@
   </div>
 </div>
 
-<div class="brush-cursor" id="brush-cursor"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -188,7 +184,6 @@
   const regionListEl = document.getElementById('region-list');
   const statusBar = document.getElementById('status-bar');
   const toastEl = document.getElementById('toast');
-  const brushCursorEl = document.getElementById('brush-cursor');
   const brushSizeInput = document.getElementById('brush-size');
   const brushValEl = document.getElementById('brush-val');
 
@@ -232,7 +227,18 @@
   }
 
   renderGrid();
-  window.addEventListener('resize', () => { gridEl.style.fontSize = calcFontSize() + 'px'; });
+
+  // Start canvas overlay system after first paint
+  requestAnimationFrame(() => {
+    measureCharSize();
+    overlayLoop();
+  });
+
+  window.addEventListener('resize', () => {
+    gridEl.style.fontSize = calcFontSize() + 'px';
+    requestAnimationFrame(measureCharSize);
+    scheduleOverlayRedraw();
+  });
 
   // --- Utilities ---
   function ck(r, c) { return r + ',' + c; }
@@ -313,6 +319,8 @@
     applyOverlayCell(r, c);
   }
 
+  let metaDirty = false;
+
   function paintBrush(row, col) {
     const region = activeRegion();
     if (!region) return;
@@ -324,7 +332,7 @@
     if (currentStroke) {
       currentStroke.path.push([row, col]);
     }
-    updateRegionMeta();
+    metaDirty = true;
   }
 
   function eraseBrush(row, col) {
@@ -332,31 +340,66 @@
     for (const [r, c] of cells) {
       eraseCell(r, c);
     }
-    updateRegionMeta();
+    metaDirty = true;
   }
+
+  // Flush meta updates at 10fps instead of every mousemove
+  setInterval(() => {
+    if (metaDirty) {
+      updateRegionMeta();
+      metaDirty = false;
+    }
+  }, 100);
 
   // --- Undo ---
   function startStroke(regionId, mode) {
     currentStroke = { regionId, mode, added: new Set(), removed: new Set(), path: [] };
   }
 
+  // Draw a line of cells between two points (Bresenham)
+  function lineCells(r0, c0, r1, c1) {
+    const cells = [];
+    let dr = Math.abs(r1 - r0), dc = Math.abs(c1 - c0);
+    let sr = r0 < r1 ? 1 : -1, sc = c0 < c1 ? 1 : -1;
+    let err = dr - dc, cr = r0, cc = c0;
+    while (true) {
+      cells.push([cr, cc]);
+      if (cr === r1 && cc === c1) break;
+      const e2 = 2 * err;
+      if (e2 > -dc) { err -= dc; cr += sr; }
+      if (e2 < dr) { err += dr; cc += sc; }
+    }
+    return cells;
+  }
+
   function endStroke() {
     if (!currentStroke) return;
 
-    // Auto-fill: if painting and the path forms a closed loop, fill the interior
-    if (currentStroke.mode === 'paint' && currentStroke.path.length >= 8) {
+    // Auto-close + fill: if the path is long enough, close the gap and flood fill
+    if (currentStroke.mode === 'paint' && currentStroke.path.length >= 15) {
       const path = currentStroke.path;
       const first = path[0];
       const last = path[path.length - 1];
       const dist = Math.sqrt((first[0] - last[0]) ** 2 + (first[1] - last[1]) ** 2);
-      // If start and end are within 3 cells, treat as closed outline → auto-fill
-      if (dist <= 3) {
-        const filled = floodFillInterior(currentStroke.regionId);
-        if (filled > 0) {
-          showToast('Auto-filled ' + filled + ' cells');
-          applyAllOverlays();
-          updateRegionMeta();
+
+      // If not already closed, draw a line to close the gap
+      if (dist > 1) {
+        const closingCells = lineCells(last[0], last[1], first[0], first[1]);
+        const region = activeRegion();
+        if (region) {
+          for (const [r, c] of closingCells) {
+            if (r >= 0 && r < rows && c >= 0 && c < cols) {
+              paintCell(r, c, region.id);
+            }
+          }
         }
+      }
+
+      const filled = floodFillInterior(currentStroke.regionId);
+      if (filled > 0) {
+        showToast('Auto-filled ' + filled + ' cells');
+        applyAllOverlays();
+        updateRegionMeta();
       }
     }
 
@@ -463,32 +506,134 @@
         }
       }
     }
+
+    // Patch fill: find small unpainted pockets that leaked through gaps
+    // Re-scan: any cell marked 2 (exterior) that is a small connected component
+    // surrounded mostly by region cells gets filled too
+    const MAX_HOLE = 50; // holes up to this size get auto-filled
+    const visited2 = new Uint8Array(gw * gh);
+    for (let i = 0; i < gw * gh; i++) {
+      if (grid[i] !== 2 || visited2[i]) continue;
+      // Check if this exterior cell touches the padded border — if so, it's truly exterior
+      const gr0 = (i / gw) | 0, gc0 = i % gw;
+      if (gr0 === 0 || gr0 === gh - 1 || gc0 === 0 || gc0 === gw - 1) {
+        // Mark entire connected component as visited (true exterior)
+        const extQ = [i];
+        visited2[i] = 1;
+        while (extQ.length > 0) {
+          const ei = extQ.pop();
+          const er = (ei / gw) | 0, ec = ei % gw;
+          for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+            const nr = er + dr, nc = ec + dc;
+            if (nr < 0 || nr >= gh || nc < 0 || nc >= gw) continue;
+            const ni = nr * gw + nc;
+            if (grid[ni] === 2 && !visited2[ni]) { visited2[ni] = 1; extQ.push(ni); }
+          }
+        }
+        continue;
+      }
+      // This exterior cell doesn't touch the border — it's a hole that leaked
+      // Flood to find the hole's size
+      const hole = [i];
+      visited2[i] = 1;
+      let head = 0;
+      let touchesBorder = false;
+      while (head < hole.length) {
+        const hi = hole[head++];
+        const hr = (hi / gw) | 0, hc = hi % gw;
+        if (hr === 0 || hr === gh - 1 || hc === 0 || hc === gw - 1) touchesBorder = true;
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr = hr + dr, nc = hc + dc;
+          if (nr < 0 || nr >= gh || nc < 0 || nc >= gw) continue;
+          const ni = nr * gw + nc;
+          if (grid[ni] === 2 && !visited2[ni]) { visited2[ni] = 1; hole.push(ni); }
+        }
+      }
+      // Fill the hole if it's small and doesn't touch the border
+      if (!touchesBorder && hole.length <= MAX_HOLE) {
+        for (const hi of hole) {
+          const hr = (hi / gw) | 0, hc = hi % gw;
+          const r = hr - pad + minR;
+          const c = hc - pad + minC;
+          if (r >= 0 && r < rows && c >= 0 && c < cols) {
+            paintCell(r, c, regionId);
+            filled++;
+          }
+        }
+      }
+    }
+
     return filled;
   }
 
-  // --- Overlay Rendering ---
-  function applyOverlayCell(r, c) {
-    const key = ck(r, c);
-    const regionId = cellRegionMap[key];
-    if (regionId) {
-      const region = getRegion(regionId);
-      if (region) {
-        const isActive = regionId === activeRegionId;
-        const alpha = isActive ? 0.45 : 0.25;
-        spanGrid[r][c].style.backgroundColor = hexToRgba(region.color, alpha);
-        return;
-      }
-    }
-    spanGrid[r][c].style.backgroundColor = '';
+  // --- Canvas Overlay Rendering ---
+  const overlayCanvas = document.getElementById('overlay-canvas');
+  const ctx = overlayCanvas.getContext('2d');
+  let charW = 0, charH = 0;
+  let overlayDirty = true;
+
+  function measureCharSize() {
+    const span = spanGrid[0]?.[0];
+    if (!span) return;
+    const rect = span.getBoundingClientRect();
+    charW = rect.width;
+    charH = rect.height;
+    // Size canvas to match the grid
+    const preRect = gridEl.getBoundingClientRect();
+    overlayCanvas.width = preRect.width;
+    overlayCanvas.height = preRect.height;
+    overlayCanvas.style.width = preRect.width + 'px';
+    overlayCanvas.style.height = preRect.height + 'px';
   }
 
-  function applyAllOverlays() {
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        applyOverlayCell(r, c);
+  function scheduleOverlayRedraw() {
+    overlayDirty = true;
+  }
+
+  // Single rAF loop for all overlay drawing
+  function overlayLoop() {
+    if (overlayDirty) {
+      overlayDirty = false;
+      redrawOverlay();
+    }
+    requestAnimationFrame(overlayLoop);
+  }
+
+  function redrawOverlay() {
+    if (!charW) measureCharSize();
+    if (!charW) return;
+
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    // Draw region fills
+    for (const region of regions) {
+      if (region.cells.size === 0) continue;
+      const isActive = region.id === activeRegionId;
+      const alpha = isActive ? 0.45 : 0.25;
+      ctx.fillStyle = hexToRgba(region.color, alpha);
+      for (const key of region.cells) {
+        const [r, c] = key.split(',').map(Number);
+        ctx.fillRect(c * charW, r * charH, charW, charH);
       }
     }
+
+    // Draw brush cursor
+    if ((isPainting || isErasing) && cursorRow >= 0) {
+      const half = Math.floor(brushSize / 2);
+      ctx.strokeStyle = isErasing ? 'rgba(255,100,100,0.6)' : 'rgba(0,255,0,0.6)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(
+        (cursorCol - half) * charW,
+        (cursorRow - half) * charH,
+        brushSize * charW,
+        brushSize * charH
+      );
+    }
   }
+
+  // Compat shims — paintCell/eraseCell used to call applyOverlayCell directly
+  function applyOverlayCell() { scheduleOverlayRedraw(); }
+  function applyAllOverlays() { scheduleOverlayRedraw(); }
 
   function hexToRgba(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -592,76 +737,54 @@
     showToast('Created "' + (label || 'Untitled') + '" — hold Shift + hover to paint');
   });
 
-  // --- Brush Cursor Visualization ---
-  function updateBrushCursor(e) {
-    if (!isPainting && !isErasing && !e.shiftKey && !e.altKey) {
-      brushCursorEl.style.display = 'none';
-      return;
-    }
-    // Estimate char dimensions from a span
-    const span = spanGrid[0]?.[0];
-    if (!span) return;
-    const rect = span.getBoundingClientRect();
-    const charW = rect.width;
-    const charH = rect.height;
-    const half = Math.floor(brushSize / 2);
-
-    const targetSpan = spanGrid[cursorRow]?.[cursorCol];
-    if (!targetSpan) { brushCursorEl.style.display = 'none'; return; }
-
-    const tRect = targetSpan.getBoundingClientRect();
-    const cx = tRect.left + tRect.width / 2;
-    const cy = tRect.top + tRect.height / 2;
-
-    brushCursorEl.style.display = 'block';
-    brushCursorEl.style.left = (cx - (half + 0.5) * charW) + 'px';
-    brushCursorEl.style.top = (cy - (half + 0.5) * charH) + 'px';
-    brushCursorEl.style.width = (brushSize * charW) + 'px';
-    brushCursorEl.style.height = (brushSize * charH) + 'px';
-    brushCursorEl.style.borderColor = isErasing || e.altKey
-      ? 'rgba(255,100,100,0.6)'
-      : 'rgba(0,255,0,0.6)';
-  }
+  // Brush cursor is drawn on the canvas overlay — no DOM element needed
 
   // --- Grid Events ---
+  let lastMoveRow = -1, lastMoveCol = -1;
+
   gridEl.addEventListener('mousemove', (e) => {
     const rc = getSpanRC(e.target);
     if (!rc) return;
     const [r, c] = rc;
+
+    // Skip if same cell as last move (major perf win during painting)
+    if (r === lastMoveRow && c === lastMoveCol) return;
+    lastMoveRow = r;
+    lastMoveCol = c;
     cursorRow = r;
     cursorCol = c;
 
-    // Update status
-    const regionAtCell = cellRegionMap[ck(r, c)];
-    const regionName = regionAtCell ? (getRegion(regionAtCell)?.label || regionAtCell) : '-';
-    const modeSpan = isPainting ? '<span class="mode">PAINTING</span>'
-      : isErasing ? '<span class="erase-mode">ERASING</span>'
-      : e.shiftKey ? '<span class="mode">hold to paint</span>'
-      : e.altKey ? '<span class="erase-mode">hold to erase</span>'
-      : 'idle';
-    statusBar.innerHTML = 'row ' + r + ', col ' + c + ' | region: ' + regionName + '<br>Mode: ' + modeSpan;
-
-    // Paint/erase while dragging
+    // Paint/erase first (before any DOM reads)
     if (isPainting && e.shiftKey) {
       paintBrush(r, c);
-    } else if (isErasing && e.altKey) {
+    } else if (isErasing && e.ctrlKey) {
       eraseBrush(r, c);
     } else if (isPainting && !e.shiftKey) {
-      // Released shift while moving
       endStroke();
       isPainting = false;
-    } else if (isErasing && !e.altKey) {
+    } else if (isErasing && !e.ctrlKey) {
       endStroke();
       isErasing = false;
     }
 
-    updateBrushCursor(e);
+    // Always redraw overlay (canvas is fast)
+    scheduleOverlayRedraw();
+
+    // Status bar only when idle (avoid layout thrash during painting)
+    if (!isPainting && !isErasing) {
+      const regionAtCell = cellRegionMap[ck(r, c)];
+      const regionName = regionAtCell ? (getRegion(regionAtCell)?.label || regionAtCell) : '-';
+      const modeSpan = e.shiftKey ? '<span class="mode">hold to paint</span>'
+        : e.ctrlKey ? '<span class="erase-mode">hold to erase</span>'
+        : 'idle';
+      statusBar.innerHTML = 'row ' + r + ', col ' + c + ' | region: ' + regionName + '<br>Mode: ' + modeSpan;
+    }
   });
 
   gridEl.addEventListener('mouseleave', () => {
     cursorRow = -1;
     cursorCol = -1;
-    brushCursorEl.style.display = 'none';
+    scheduleOverlayRedraw();
     if (isPainting || isErasing) {
       endStroke();
       isPainting = false;
@@ -684,26 +807,25 @@
       isPainting = true;
       startStroke(activeRegionId, 'paint');
       if (cursorRow >= 0) paintBrush(cursorRow, cursorCol);
-      updateBrushCursor(e);
+      scheduleOverlayRedraw();
       return;
     }
 
-    // Alt = erase mode
-    if (e.key === 'Alt' && !isErasing && !isPainting) {
-      e.preventDefault();
-      isErasing = true;
-      // Figure out which region we're erasing from
-      const regionAtCursor = cursorRow >= 0 ? cellRegionMap[ck(cursorRow, cursorCol)] : activeRegionId;
-      startStroke(regionAtCursor || activeRegionId || 'unknown', 'erase');
-      if (cursorRow >= 0) eraseBrush(cursorRow, cursorCol);
-      updateBrushCursor(e);
-      return;
-    }
-
-    // Undo
+    // Undo (must be before Ctrl-erase check)
     if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       undo();
+      return;
+    }
+
+    // Ctrl = erase mode (only bare Ctrl, not Ctrl+key combos)
+    if (e.key === 'Control' && !isErasing && !isPainting) {
+      e.preventDefault();
+      isErasing = true;
+      const regionAtCursor = cursorRow >= 0 ? cellRegionMap[ck(cursorRow, cursorCol)] : activeRegionId;
+      startStroke(regionAtCursor || activeRegionId || 'unknown', 'erase');
+      if (cursorRow >= 0) eraseBrush(cursorRow, cursorCol);
+      scheduleOverlayRedraw();
       return;
     }
 
@@ -712,13 +834,13 @@
       brushSize = Math.max(1, brushSize - 1);
       brushSizeInput.value = brushSize;
       brushValEl.textContent = brushSize;
-      updateBrushCursor(e);
+      scheduleOverlayRedraw();
     }
     if (e.key === ']') {
       brushSize = Math.min(15, brushSize + 1);
       brushSizeInput.value = brushSize;
       brushValEl.textContent = brushSize;
-      updateBrushCursor(e);
+      scheduleOverlayRedraw();
     }
 
     // Number keys select regions
@@ -767,53 +889,78 @@
     if (e.key === 'Shift' && isPainting) {
       endStroke();
       isPainting = false;
-      updateBrushCursor(e);
+      scheduleOverlayRedraw();
     }
-    if (e.key === 'Alt' && isErasing) {
+    if (e.key === 'Control' && isErasing) {
       endStroke();
       isErasing = false;
-      updateBrushCursor(e);
+      scheduleOverlayRedraw();
     }
   });
 
-  // Prevent context menu from Alt
+  // Prevent context menu
   gridEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
   // --- Export ---
-  function cellsToPolygon(cells) {
-    // Convert a set of cells to a list of [row, col] pairs
-    // For paint-based regions, we export raw cells instead of polygon vertices
-    const points = [];
-    for (const key of cells) {
+  // Run-length encode cells: [row, startCol, endCol] per run
+  // e.g. cells at (5,10),(5,11),(5,12),(5,14) → [[5,10,12],[5,14,14]]
+  // Typically 10-20x smaller than raw cell list
+  function cellsToRuns(cellSet) {
+    // Group by row
+    const byRow = {};
+    for (const key of cellSet) {
       const [r, c] = key.split(',').map(Number);
-      points.push([r, c]);
+      if (!byRow[r]) byRow[r] = [];
+      byRow[r].push(c);
     }
-    return points;
+    const runs = [];
+    const sortedRows = Object.keys(byRow).map(Number).sort((a, b) => a - b);
+    for (const r of sortedRows) {
+      const cols = byRow[r].sort((a, b) => a - b);
+      let start = cols[0], end = cols[0];
+      for (let i = 1; i < cols.length; i++) {
+        if (cols[i] === end + 1) {
+          end = cols[i];
+        } else {
+          runs.push([r, start, end]);
+          start = cols[i];
+          end = cols[i];
+        }
+      }
+      runs.push([r, start, end]);
+    }
+    return runs;
   }
 
-  function getExportData() {
-    return JSON.stringify({
-      regions: regions.map(r => ({
-        id: r.id,
-        label: r.label,
-        cells: cellsToPolygon(r.cells)
-      }))
-    }, null, 2);
+  // Show full path hint under the save input
+  const savePathInput = document.getElementById('save-path');
+  const savePathHint = document.getElementById('save-path-hint');
+  const outputDir = window.__OUTPUT_DIR__ || '.';
+
+  function updatePathHint() {
+    const val = savePathInput.value.trim() || 'ascii-config.json';
+    savePathHint.textContent = outputDir + '/' + val;
   }
+  updatePathHint();
+  savePathInput.addEventListener('input', updatePathHint);
 
   document.getElementById('export-btn').addEventListener('click', async () => {
-    const regionData = {
-      regions: regions.map(r => ({
-        id: r.id,
-        label: r.label,
-        cells: cellsToPolygon(r.cells)
-      }))
+    const savePath = savePathInput.value.trim() || 'ascii-config.json';
+    const payload = {
+      savePath,
+      regionConfig: {
+        regions: regions.map(r => ({
+          id: r.id,
+          label: r.label,
+          runs: cellsToRuns(r.cells)
+        }))
+      }
     };
     try {
       const res = await fetch('/api/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(regionData)
+        body: JSON.stringify(payload)
       });
       const result = await res.json();
       if (result.ok) {
@@ -826,19 +973,6 @@
     }
   });
 
-  document.getElementById('download-btn').addEventListener('click', () => {
-    const json = getExportData();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'regions.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('Downloaded regions.json');
-  });
 
   // --- Init ---
   renderRegionList();

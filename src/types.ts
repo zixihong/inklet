@@ -80,8 +80,10 @@ export interface ManualRegion {
   label: string
   /** Polygon vertices [row, col] — cells inside are filled via ray casting */
   polygon?: [number, number][]
-  /** Explicit cell list [row, col] — from paint-based editor */
+  /** Explicit cell list [row, col] */
   cells?: [number, number][]
+  /** Run-length encoded cells [row, startCol, endCol] — compact format from editor */
+  runs?: [number, number, number][]
 }
 
 export interface ManualRegionConfig {
