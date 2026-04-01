@@ -129,7 +129,7 @@ async function main() {
   const outputDir = values["output-dir"]
     ? resolve(values["output-dir"])
     : process.cwd()
-  await launchEditor(data, { outputDir })
+  await launchEditor(data, { outputDir, imageInput: inputPath, generateOptions: options })
 }
 
 main().catch((err) => {

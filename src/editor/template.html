@@ -58,6 +58,29 @@
   }
   .new-region-btn:hover { background: #1a2a1a; }
 
+  /* Toggle switches */
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .toggle-row label { font-size: 11px; color: #999; }
+  .toggle-switch {
+    position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-switch .slider {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: #444; border-radius: 10px; transition: background 0.2s;
+  }
+  .toggle-switch .slider::before {
+    content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px;
+    background: #888; border-radius: 50%; transition: transform 0.2s, background 0.2s;
+  }
+  .toggle-switch input:checked + .slider { background: #0a4a0a; }
+  .toggle-switch input:checked + .slider::before { transform: translateX(16px); background: #0f0; }
+
+  .color-mode-select {
+    background: #222; color: #0f0; border: 1px solid #444; padding: 4px 6px;
+    font-family: monospace; font-size: 11px; border-radius: 3px; outline: none; cursor: pointer;
+  }
+
   .export-btn {
     background: #0f0; color: #000; border: none; padding: 10px 20px; cursor: pointer;
     font-family: monospace; font-size: 14px; width: 100%; margin-top: 4px;
@@ -106,6 +129,32 @@
 <div id="sidebar">
   <div style="font-size:14px;color:#fff;font-weight:bold;">Inklet</div>
 
+  <div id="display-toggles" style="display:none;">
+    <div class="section-title">Display</div>
+    <div class="toggle-row">
+      <label>Remove Background</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggle-remove-bg">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <label>Invert</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggle-invert">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <label>Color Mode</label>
+      <select id="color-mode-select" class="color-mode-select">
+        <option value="color">Color</option>
+        <option value="grayscale">Grayscale</option>
+        <option value="none">None</option>
+      </select>
+    </div>
+  </div>
+
   <div class="section-title">Brush Size</div>
   <div class="brush-row">
     <label>Size</label>
@@ -151,13 +200,13 @@
 (function() {
   'use strict';
 
-  const data = window.__ASCII_DATA__;
+  let data = window.__ASCII_DATA__;
   if (!data) {
     document.getElementById('grid').textContent = 'No data. Set window.__ASCII_DATA__.';
     return;
   }
 
-  const { cols, rows, chars, palette, colorIndices } = data;
+  let { cols, rows, chars, palette, colorIndices } = data;
 
   // --- Constants ---
   const REGION_COLORS = ['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#ffeaa7','#dda0dd','#98d8c8','#f7dc6f'];
@@ -227,6 +276,70 @@
   }
 
   renderGrid();
+
+  // --- Display toggles (regeneration) ---
+  const canRegenerate = window.__CAN_REGENERATE__;
+  const togglesPanel = document.getElementById('display-toggles');
+  const toggleRemoveBg = document.getElementById('toggle-remove-bg');
+  const toggleInvert = document.getElementById('toggle-invert');
+  const colorModeSelect = document.getElementById('color-mode-select');
+
+  if (canRegenerate) {
+    togglesPanel.style.display = 'block';
+    const initial = window.__INITIAL_TOGGLES__ || {};
+    toggleRemoveBg.checked = !!initial.removeBackground;
+    toggleInvert.checked = !!initial.invert;
+    colorModeSelect.value = initial.colorMode || 'color';
+  }
+
+  let regenerating = false;
+
+  async function regenerate() {
+    if (!canRegenerate || regenerating) return;
+    regenerating = true;
+    showToast('Regenerating...');
+    try {
+      const res = await fetch('/api/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          removeBackground: toggleRemoveBg.checked,
+          invert: toggleInvert.checked,
+          colorMode: colorModeSelect.value,
+        })
+      });
+      const newData = await res.json();
+      if (newData.ok === false) {
+        showToast('Error: ' + newData.error);
+        regenerating = false;
+        return;
+      }
+      // Update data references
+      data = newData;
+      cols = newData.cols;
+      rows = newData.rows;
+      chars = newData.chars;
+      palette = newData.palette;
+      colorIndices = newData.colorIndices;
+
+      // Re-render the grid
+      spanGrid.length = 0;
+      gridEl.innerHTML = '';
+      renderGrid();
+      requestAnimationFrame(() => {
+        measureCharSize();
+        scheduleOverlayRedraw();
+      });
+      showToast('Updated');
+    } catch (err) {
+      showToast('Regenerate failed: ' + err.message);
+    }
+    regenerating = false;
+  }
+
+  toggleRemoveBg.addEventListener('change', regenerate);
+  toggleInvert.addEventListener('change', regenerate);
+  colorModeSelect.addEventListener('change', regenerate);
 
   // Start canvas overlay system after first paint
   requestAnimationFrame(() => {

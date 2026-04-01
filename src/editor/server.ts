@@ -3,18 +3,23 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { exec } from "node:child_process"
 import { platform } from "node:os"
-import type { AsciiData } from "../types.js"
+import { generateAscii } from "../generate.js"
+import type { AsciiData, GenerateOptions } from "../types.js"
 
 export interface EditorOptions {
   port?: number
   outputDir?: string  // directory to write files into (default: process.cwd())
+  /** Original image path or buffer — enables live regeneration in the editor */
+  imageInput?: string | Buffer
+  /** Base generation options — editor toggles override these */
+  generateOptions?: GenerateOptions
 }
 
 export async function launchEditor(
   data: AsciiData,
   options: EditorOptions = {}
 ): Promise<void> {
-  const { port = 0, outputDir = process.cwd() } = options
+  const { port = 0, outputDir = process.cwd(), imageInput, generateOptions = {} } = options
 
   // Read the template HTML file (relative to this compiled JS file's location)
   // When compiled, this file is at dist/src/editor/server.js
@@ -34,7 +39,14 @@ export async function launchEditor(
   }
 
   // Inject ASCII data into the template
-  const dataScript = `<script>window.__ASCII_DATA__ = ${JSON.stringify(data)};window.__OUTPUT_DIR__ = ${JSON.stringify(outputDir)};</script>`
+  let currentData = data
+  const canRegenerate = !!imageInput
+  const initialToggles = {
+    removeBackground: generateOptions.removeBackground ?? false,
+    invert: generateOptions.invert ?? false,
+    colorMode: generateOptions.colorMode ?? "color",
+  }
+  const dataScript = `<script>window.__ASCII_DATA__ = ${JSON.stringify(data)};window.__OUTPUT_DIR__ = ${JSON.stringify(outputDir)};window.__CAN_REGENERATE__ = ${canRegenerate};window.__INITIAL_TOGGLES__ = ${JSON.stringify(initialToggles)};</script>`
   const html = templateHtml.replace("</head>", `${dataScript}\n</head>`)
 
   return new Promise((resolvePromise) => {
@@ -45,7 +57,7 @@ export async function launchEditor(
         req.on("end", () => {
           try {
             const { regionConfig, savePath } = JSON.parse(body)
-            const config = { data, regionConfig }
+            const config = { data: currentData, regionConfig }
             const outPath = savePath
               ? resolve(outputDir, savePath)
               : resolve(outputDir, "ascii-config.json")
@@ -61,12 +73,35 @@ export async function launchEditor(
         return
       }
 
+      if (req.method === "POST" && req.url === "/api/regenerate") {
+        if (!imageInput) {
+          res.writeHead(400, { "Content-Type": "application/json" })
+          res.end(JSON.stringify({ ok: false, error: "No image input available for regeneration" }))
+          return
+        }
+        let body = ""
+        req.on("data", (chunk: Buffer) => { body += chunk.toString() })
+        req.on("end", async () => {
+          try {
+            const overrides = JSON.parse(body) as Partial<GenerateOptions>
+            const opts: GenerateOptions = { ...generateOptions, ...overrides }
+            currentData = await generateAscii(imageInput, opts)
+            res.writeHead(200, { "Content-Type": "application/json" })
+            res.end(JSON.stringify(currentData))
+          } catch (err: any) {
+            res.writeHead(500, { "Content-Type": "application/json" })
+            res.end(JSON.stringify({ ok: false, error: err.message }))
+          }
+        })
+        return
+      }
+
       if (req.url === "/" || req.url === "/index.html") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
         res.end(html)
       } else if (req.url === "/api/data") {
         res.writeHead(200, { "Content-Type": "application/json" })
-        res.end(JSON.stringify(data))
+        res.end(JSON.stringify(currentData))
       } else {
         res.writeHead(404)
         res.end("Not found")
