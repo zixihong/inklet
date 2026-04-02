@@ -180,17 +180,15 @@
   </div>
 
   <div id="instructions">
-    <strong style="color:#999">Paint</strong><br>
-    <kbd>Shift</kbd> + hover to <span style="color:#0f0">paint outline</span><br>
-    <kbd>X</kbd> + hover to <span style="color:#f66">erase</span><br>
-    Draw a closed outline → auto-fills interior<br><br>
-    <strong style="color:#999">Controls</strong><br>
+    <strong style="color:#999">Draw</strong><br>
+    <span style="color:#0f0">Left click</span> + drag to draw<br>
+    <span style="color:#f66">Right click</span> to erase<br>
+    Closed outline → auto-fills interior<br><br>
+    <strong style="color:#999">Shortcuts</strong><br>
+    <kbd>B</kbd> paint tool &nbsp; <kbd>E</kbd> erase tool<br>
     <kbd>F</kbd> fill inside outline<br>
-    <kbd>Ctrl+Z</kbd> undo last stroke<br>
+    <kbd>Ctrl+Z</kbd> undo<br>
     <kbd>[</kbd> / <kbd>]</kbd> brush size<br>
-    <kbd>1-8</kbd> select region<br>
-    <kbd>Del</kbd> delete region<br>
-    <kbd>Esc</kbd> deselect<br>
   </div>
 </div>
 
@@ -219,6 +217,7 @@
   let cursorRow = -1, cursorCol = -1;
   let isPainting = false;
   let isErasing = false;
+  let tool = 'paint'; // 'paint' or 'erase'
   let undoStack = [];        // each entry: { regionId, added: Set<key>, removed: Set<key> }
   let currentStroke = null;  // in-progress stroke for undo
 
@@ -620,62 +619,6 @@
       }
     }
 
-    // Patch fill: find small unpainted pockets that leaked through gaps
-    // Re-scan: any cell marked 2 (exterior) that is a small connected component
-    // surrounded mostly by region cells gets filled too
-    const MAX_HOLE = 50; // holes up to this size get auto-filled
-    const visited2 = new Uint8Array(gw * gh);
-    for (let i = 0; i < gw * gh; i++) {
-      if (grid[i] !== 2 || visited2[i]) continue;
-      // Check if this exterior cell touches the padded border — if so, it's truly exterior
-      const gr0 = (i / gw) | 0, gc0 = i % gw;
-      if (gr0 === 0 || gr0 === gh - 1 || gc0 === 0 || gc0 === gw - 1) {
-        // Mark entire connected component as visited (true exterior)
-        const extQ = [i];
-        visited2[i] = 1;
-        while (extQ.length > 0) {
-          const ei = extQ.pop();
-          const er = (ei / gw) | 0, ec = ei % gw;
-          for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-            const nr = er + dr, nc = ec + dc;
-            if (nr < 0 || nr >= gh || nc < 0 || nc >= gw) continue;
-            const ni = nr * gw + nc;
-            if (grid[ni] === 2 && !visited2[ni]) { visited2[ni] = 1; extQ.push(ni); }
-          }
-        }
-        continue;
-      }
-      // This exterior cell doesn't touch the border — it's a hole that leaked
-      // Flood to find the hole's size
-      const hole = [i];
-      visited2[i] = 1;
-      let head = 0;
-      let touchesBorder = false;
-      while (head < hole.length) {
-        const hi = hole[head++];
-        const hr = (hi / gw) | 0, hc = hi % gw;
-        if (hr === 0 || hr === gh - 1 || hc === 0 || hc === gw - 1) touchesBorder = true;
-        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-          const nr = hr + dr, nc = hc + dc;
-          if (nr < 0 || nr >= gh || nc < 0 || nc >= gw) continue;
-          const ni = nr * gw + nc;
-          if (grid[ni] === 2 && !visited2[ni]) { visited2[ni] = 1; hole.push(ni); }
-        }
-      }
-      // Fill the hole if it's small and doesn't touch the border
-      if (!touchesBorder && hole.length <= MAX_HOLE) {
-        for (const hi of hole) {
-          const hr = (hi / gw) | 0, hc = hi % gw;
-          const r = hr - pad + minR;
-          const c = hc - pad + minC;
-          if (r >= 0 && r < rows && c >= 0 && c < cols) {
-            paintCell(r, c, regionId);
-            filled++;
-          }
-        }
-      }
-    }
-
     return filled;
   }
 
@@ -731,9 +674,10 @@
     }
 
     // Draw brush cursor
-    if ((isPainting || isErasing) && cursorRow >= 0) {
+    if (cursorRow >= 0) {
       const half = Math.floor(brushSize / 2);
-      ctx.strokeStyle = isErasing ? 'rgba(255,100,100,0.6)' : 'rgba(0,255,0,0.6)';
+      const erasing = isErasing || (tool === 'erase' && !isPainting);
+      ctx.strokeStyle = erasing ? 'rgba(255,100,100,0.6)' : 'rgba(0,255,0,0.6)';
       ctx.lineWidth = 1;
       ctx.strokeRect(
         (cursorCol - half) * charW,
@@ -847,13 +791,80 @@
     const label = window.prompt('Region label:', 'Region ' + (regions.length + 1));
     if (label === null) return;
     createRegion(label || 'Untitled');
-    showToast('Created "' + (label || 'Untitled') + '" — hold Shift + hover to paint');
+    showToast('Created "' + (label || 'Untitled') + '" — left click + drag to paint');
   });
+
+  function updateStatusTool() {
+    const toolSpan = tool === 'erase'
+      ? '<span class="erase-mode">erase</span>'
+      : '<span class="mode">paint</span>';
+    statusBar.innerHTML = 'Cursor: -<br>Tool: ' + toolSpan;
+  }
 
   // Brush cursor is drawn on the canvas overlay — no DOM element needed
 
   // --- Grid Events ---
   let lastMoveRow = -1, lastMoveCol = -1;
+  let lastPaintRow = -1, lastPaintCol = -1; // last cell we actually painted/erased
+
+  // Prevent context menu on the grid so right-click can erase
+  gridEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  gridEl.addEventListener('mousedown', (e) => {
+    const rc = getSpanRC(e.target);
+    if (!rc) return;
+    const [r, c] = rc;
+
+    // Left click = use current tool (paint or erase)
+    if (e.button === 0 && !isPainting && !isErasing) {
+      if (tool === 'paint') {
+        if (!activeRegionId) {
+          showToast('Select or create a region first');
+          return;
+        }
+        isPainting = true;
+        startStroke(activeRegionId, 'paint');
+        paintBrush(r, c);
+      } else {
+        isErasing = true;
+        const regionAtCursor = cellRegionMap[ck(r, c)] || activeRegionId;
+        startStroke(regionAtCursor || 'unknown', 'erase');
+        eraseBrush(r, c);
+      }
+      lastPaintRow = r;
+      lastPaintCol = c;
+      scheduleOverlayRedraw();
+      return;
+    }
+
+    // Right click = always erase regardless of tool
+    if (e.button === 2 && !isErasing && !isPainting) {
+      e.preventDefault();
+      isErasing = true;
+      const regionAtCursor = cellRegionMap[ck(r, c)] || activeRegionId;
+      startStroke(regionAtCursor || 'unknown', 'erase');
+      eraseBrush(r, c);
+      lastPaintRow = r;
+      lastPaintCol = c;
+      scheduleOverlayRedraw();
+      return;
+    }
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (e.button === 0 && isPainting) {
+      endStroke();
+      isPainting = false;
+      lastPaintRow = -1;
+      scheduleOverlayRedraw();
+    }
+    if (e.button === 2 && isErasing) {
+      endStroke();
+      isErasing = false;
+      lastPaintRow = -1;
+      scheduleOverlayRedraw();
+    }
+  });
 
   gridEl.addEventListener('mousemove', (e) => {
     const rc = getSpanRC(e.target);
@@ -867,16 +878,25 @@
     cursorRow = r;
     cursorCol = c;
 
-    // Paint/erase first (before any DOM reads)
-    if (isPainting && e.shiftKey) {
-      paintBrush(r, c);
+    // Paint/erase on drag — interpolate between last and current position
+    if (isPainting) {
+      if (lastPaintRow >= 0) {
+        const steps = lineCells(lastPaintRow, lastPaintCol, r, c);
+        for (const [sr, sc] of steps) paintBrush(sr, sc);
+      } else {
+        paintBrush(r, c);
+      }
+      lastPaintRow = r;
+      lastPaintCol = c;
     } else if (isErasing) {
-      eraseBrush(r, c);
-    } else if (isPainting && !e.shiftKey) {
-      endStroke();
-      isPainting = false;
-    } else if (false) {
-      // erase stop handled by keyup
+      if (lastPaintRow >= 0) {
+        const steps = lineCells(lastPaintRow, lastPaintCol, r, c);
+        for (const [sr, sc] of steps) eraseBrush(sr, sc);
+      } else {
+        eraseBrush(r, c);
+      }
+      lastPaintRow = r;
+      lastPaintCol = c;
     }
 
     // Always redraw overlay (canvas is fast)
@@ -886,10 +906,10 @@
     if (!isPainting && !isErasing) {
       const regionAtCell = cellRegionMap[ck(r, c)];
       const regionName = regionAtCell ? (getRegion(regionAtCell)?.label || regionAtCell) : '-';
-      const modeSpan = e.shiftKey ? '<span class="mode">hold to paint</span>'
-        : isErasing ? '<span class="erase-mode">ERASING</span>'
-        : 'idle';
-      statusBar.innerHTML = 'row ' + r + ', col ' + c + ' | region: ' + regionName + '<br>Mode: ' + modeSpan;
+      const toolSpan = tool === 'erase'
+        ? '<span class="erase-mode">erase</span>'
+        : '<span class="mode">paint</span>';
+      statusBar.innerHTML = 'row ' + r + ', col ' + c + ' | region: ' + regionName + '<br>Tool: ' + toolSpan;
     }
   });
 
@@ -901,42 +921,20 @@
       endStroke();
       isPainting = false;
       isErasing = false;
+      lastPaintRow = -1;
     }
     statusBar.innerHTML = 'Cursor: -<br>Mode: idle';
   });
 
-  // --- Key-driven painting ---
+  // --- Keyboard shortcuts ---
   document.addEventListener('keydown', (e) => {
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-
-    // Shift = paint mode
-    if (e.key === 'Shift' && !isPainting && !isErasing) {
-      if (!activeRegionId) {
-        showToast('Select or create a region first');
-        return;
-      }
-      isPainting = true;
-      startStroke(activeRegionId, 'paint');
-      if (cursorRow >= 0) paintBrush(cursorRow, cursorCol);
-      scheduleOverlayRedraw();
-      return;
-    }
 
     // Undo
     if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       undo();
-      return;
-    }
-
-    // X = erase mode
-    if (e.key === 'x' && !isErasing && !isPainting && !e.ctrlKey && !e.metaKey) {
-      isErasing = true;
-      const regionAtCursor = cursorRow >= 0 ? cellRegionMap[ck(cursorRow, cursorCol)] : activeRegionId;
-      startStroke(regionAtCursor || activeRegionId || 'unknown', 'erase');
-      if (cursorRow >= 0) eraseBrush(cursorRow, cursorCol);
-      scheduleOverlayRedraw();
       return;
     }
 
@@ -954,13 +952,18 @@
       scheduleOverlayRedraw();
     }
 
-    // Number keys select regions
-    if (e.key >= '1' && e.key <= '9') {
-      const idx = parseInt(e.key, 10) - 1;
-      if (idx < regions.length) {
-        selectRegion(regions[idx].id);
-        showToast('Selected: ' + regions[idx].label);
-      }
+    // E = erase tool, B = paint tool
+    if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
+      tool = 'erase';
+      showToast('Erase tool');
+      updateStatusTool();
+      return;
+    }
+    if (e.key === 'b' && !e.ctrlKey && !e.metaKey) {
+      tool = 'paint';
+      showToast('Paint tool');
+      updateStatusTool();
+      return;
     }
 
     // F = flood fill interior of active region's outline
@@ -977,35 +980,6 @@
         showToast('Nothing to fill — draw a closed outline first');
       }
       return;
-    }
-
-    // Delete active region
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (activeRegionId) {
-        const name = activeRegion()?.label;
-        deleteRegion(activeRegionId);
-        showToast('Deleted: ' + name);
-      }
-    }
-
-    // Escape = deselect
-    if (e.key === 'Escape') {
-      activeRegionId = null;
-      renderRegionList();
-      applyAllOverlays();
-    }
-  });
-
-  document.addEventListener('keyup', (e) => {
-    if (e.key === 'Shift' && isPainting) {
-      endStroke();
-      isPainting = false;
-      scheduleOverlayRedraw();
-    }
-    if (e.key === 'x' && isErasing) {
-      endStroke();
-      isErasing = false;
-      scheduleOverlayRedraw();
     }
   });
 
