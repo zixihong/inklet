@@ -21,22 +21,11 @@ export async function launchEditor(
 ): Promise<void> {
   const { port = 0, outputDir = process.cwd(), imageInput, generateOptions = {} } = options
 
-  // Read the template HTML file (relative to this compiled JS file's location)
   // When compiled, this file is at dist/src/editor/server.js
-  // The template.html stays in src/editor/template.html but we need to read it
-  // Since we bundle the template, we read it using import.meta
-  const templatePath = resolve(import.meta.dirname, "template.html")
-
-  // For the compiled version, template.html needs to be copied to dist or read from src.
-  // Simplest: read from the source directory. We'll try multiple locations.
-  let templateHtml: string
-  try {
-    templateHtml = readFileSync(templatePath, "utf-8")
-  } catch {
-    // Fallback: try relative to project root
-    const fallbackPath = resolve(import.meta.dirname, "../../../src/editor/template.html")
-    templateHtml = readFileSync(fallbackPath, "utf-8")
-  }
+  // The template ships at src/editor/template.html (package root)
+  // Both paths are 3 levels up from this file to the package root
+  const packageRoot = resolve(import.meta.dirname, "../../..")
+  const templateHtml = readFileSync(resolve(packageRoot, "src/editor/template.html"), "utf-8")
 
   // Inject ASCII data into the template
   let currentData = data

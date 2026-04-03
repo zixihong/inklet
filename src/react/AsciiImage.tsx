@@ -94,7 +94,7 @@ export function AsciiImage({
       const result = buildRegionMap(config.data, config.regionConfig)
       return { resolvedRegionMap: result.regionMap, resolvedRegions: result.regions }
     }
-    return { resolvedRegionMap: null as (string | null)[] | null, resolvedRegions: [] as any[] }
+    return { resolvedRegionMap: null as (string | null)[] | null, resolvedRegions: [] as RegionInfo[] }
   }, [config, regionMap, regions])
 
   const spanRows = useAsciiSpans(resolvedData, resolvedRegionMap)

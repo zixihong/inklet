@@ -38,6 +38,11 @@
     "cli",
     "color"
   ],
+  "author": "Bryan Hong",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zixihong/inklet.git"
+  },
   "license": "MIT",
   "dependencies": {
     "sharp": "^0.34.5"
