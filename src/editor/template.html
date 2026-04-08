@@ -3,117 +3,226 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Inklet — Region Editor</title>
+<title>Inklet - Region Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --bg: #1c1a26;
+    --bg-elevated: #252331;
+    --bg-card: #2d2a3d;
+    --bg-input: #1f1d2b;
+    --border: #3a3651;
+    --border-soft: #2f2c40;
+    --text: #ece9f5;
+    --text-dim: #a59fbf;
+    --text-muted: #6b6585;
+
+    --mint: #a8e6cf;
+    --mint-soft: #7fd1b3;
+    --lavender: #c8b6ff;
+    --peach: #ffd6a5;
+    --rose: #ffb3c6;
+    --coral: #ffb4a2;
+    --sky: #a8dadc;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #111; color: #ccc; font-family: monospace; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 13px; line-height: 1.45;
+    margin: 0; display: flex; overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
 
   #grid-container {
     flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center;
-    margin-right: 300px; height: 100vh;
+    margin-right: 304px; height: 100vh;
+    background:
+      radial-gradient(ellipse at top, #2a2640 0%, var(--bg) 60%);
   }
-  pre { line-height: 1.15; cursor: crosshair; user-select: none; white-space: pre; }
+  pre {
+    font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    line-height: 1.15; cursor: crosshair; user-select: none; white-space: pre;
+  }
   pre span { position: relative; }
 
   #sidebar {
-    width: 300px; background: #1a1a1a; border-left: 1px solid #333; padding: 16px;
+    width: 304px; background: var(--bg-elevated);
+    border-left: 1px solid var(--border-soft);
+    padding: 18px 16px 16px;
     overflow-y: auto; position: fixed; right: 0; top: 0; bottom: 0;
-    display: flex; flex-direction: column; gap: 10px;
+    display: flex; flex-direction: column; gap: 14px;
+    box-shadow: -1px 0 0 rgba(255,255,255,0.02);
+  }
+  #sidebar::-webkit-scrollbar { width: 8px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .brand {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 22px; font-weight: 700; letter-spacing: -0.8px;
+    color: var(--text);
   }
 
+  .section {
+    display: flex; flex-direction: column; gap: 8px;
+  }
   .section-title {
-    font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px;
-    margin-bottom: 2px; margin-top: 6px;
+    font-size: 10px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600;
   }
 
   /* Brush size slider */
-  .brush-row { display: flex; align-items: center; gap: 8px; }
-  .brush-row label { font-size: 11px; color: #999; white-space: nowrap; }
-  .brush-row input[type=range] { flex: 1; accent-color: #0f0; }
-  .brush-row .val { font-size: 11px; color: #0f0; min-width: 18px; text-align: right; }
+  .brush-row { display: flex; align-items: center; gap: 10px; }
+  .brush-row input[type=range] {
+    flex: 1; accent-color: var(--mint);
+    height: 4px;
+  }
+  .brush-row .val {
+    font-size: 12px; color: var(--mint); min-width: 20px;
+    text-align: right; font-variant-numeric: tabular-nums; font-weight: 600;
+  }
 
   /* Region cards */
   .region-card {
-    background: #222; border: 2px solid #444; padding: 8px 10px; margin-bottom: 6px;
-    border-radius: 4px; display: flex; align-items: center; gap: 8px;
-    cursor: pointer; transition: border-color 0.15s;
+    background: var(--bg-card); border: 1px solid var(--border-soft);
+    padding: 9px 11px; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; transition: all 0.15s ease;
   }
-  .region-card:hover { border-color: #888; }
-  .region-card.active { border-color: #0f0; }
-  .region-card .swatch { width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+  .region-card + .region-card { margin-top: 6px; }
+  .region-card:hover { border-color: var(--border); background: #322f44; }
+  .region-card.active {
+    border-color: var(--mint);
+    box-shadow: 0 0 0 1px var(--mint), 0 4px 12px rgba(168,230,207,0.08);
+  }
+  .region-card .swatch {
+    width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+  }
   .region-card .info { flex: 1; min-width: 0; }
-  .region-card .label { font-size: 12px; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .region-card .meta { font-size: 10px; color: #777; margin-top: 1px; }
-  .region-card .delete-btn {
-    background: none; border: 1px solid #555; color: #f66; cursor: pointer;
-    font-family: monospace; font-size: 11px; padding: 2px 6px; border-radius: 3px;
-    flex-shrink: 0; transition: background 0.15s;
+  .region-card .label {
+    font-size: 13px; color: var(--text); font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .region-card .delete-btn:hover { background: #f66; color: #000; border-color: #f66; }
+  .region-card .meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .region-card .delete-btn {
+    background: transparent; border: none; color: var(--text-muted); cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 4px 6px; border-radius: 4px;
+    flex-shrink: 0; transition: all 0.15s;
+  }
+  .region-card .delete-btn:hover { background: rgba(255,180,162,0.15); color: var(--coral); }
 
   .new-region-btn {
-    background: #333; color: #0f0; border: 1px dashed #0f0; padding: 8px; cursor: pointer;
-    font-family: monospace; font-size: 12px; width: 100%; border-radius: 4px;
-    transition: background 0.15s; text-align: center;
+    background: transparent; color: var(--mint);
+    border: 1px dashed rgba(168,230,207,0.4);
+    padding: 10px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 500;
+    width: 100%; border-radius: 8px;
+    transition: all 0.15s; text-align: center;
   }
-  .new-region-btn:hover { background: #1a2a1a; }
+  .new-region-btn:hover {
+    background: rgba(168,230,207,0.08); border-color: var(--mint);
+  }
+
+  .empty-state {
+    font-size: 12px; color: var(--text-muted); padding: 16px 8px;
+    text-align: center; line-height: 1.5;
+  }
 
   /* Toggle switches */
-  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
-  .toggle-row label { font-size: 11px; color: #999; }
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 0;
+  }
+  .toggle-row label { font-size: 12px; color: var(--text-dim); }
   .toggle-switch {
-    position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0;
+    position: relative; width: 34px; height: 20px; cursor: pointer; flex-shrink: 0;
   }
   .toggle-switch input { opacity: 0; width: 0; height: 0; }
   .toggle-switch .slider {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background: #444; border-radius: 10px; transition: background 0.2s;
+    position: absolute; inset: 0;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 12px; transition: all 0.2s;
   }
   .toggle-switch .slider::before {
-    content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px;
-    background: #888; border-radius: 50%; transition: transform 0.2s, background 0.2s;
+    content: ''; position: absolute; height: 14px; width: 14px; left: 2px; top: 2px;
+    background: var(--text-muted); border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
   }
-  .toggle-switch input:checked + .slider { background: #0a4a0a; }
-  .toggle-switch input:checked + .slider::before { transform: translateX(16px); background: #0f0; }
+  .toggle-switch input:checked + .slider {
+    background: rgba(168,230,207,0.18); border-color: var(--mint);
+  }
+  .toggle-switch input:checked + .slider::before {
+    transform: translateX(14px); background: var(--mint);
+  }
 
-  .color-mode-select {
-    background: #222; color: #0f0; border: 1px solid #444; padding: 4px 6px;
-    font-family: monospace; font-size: 11px; border-radius: 3px; outline: none; cursor: pointer;
+  .select-input, .text-input {
+    background: var(--bg-input); color: var(--text);
+    border: 1px solid var(--border); padding: 7px 10px;
+    font: inherit; font-size: 12px; border-radius: 6px;
+    outline: none; cursor: pointer; transition: border-color 0.15s;
   }
+  .select-input:focus, .text-input:focus { border-color: var(--lavender); }
+  .text-input { cursor: text; width: 100%; }
 
   .export-btn {
-    background: #0f0; color: #000; border: none; padding: 10px 20px; cursor: pointer;
-    font-family: monospace; font-size: 14px; width: 100%; margin-top: 4px;
-    border-radius: 4px; font-weight: bold; transition: background 0.15s;
+    background: var(--mint); color: #0f1d18; border: none;
+    padding: 11px 16px; cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 600;
+    width: 100%; border-radius: 8px;
+    transition: all 0.15s;
+    box-shadow: 0 2px 12px rgba(168,230,207,0.15);
   }
-  .export-btn:hover { background: #0d0; }
-
+  .export-btn:hover { background: #b8edd5; transform: translateY(-1px); }
+  .export-btn:active { transform: translateY(0); }
 
   #status-bar {
-    background: #0a0a0a; border: 1px solid #333; padding: 6px 8px; font-size: 11px;
-    color: #888; border-radius: 3px; line-height: 1.6;
+    background: var(--bg-input); border: 1px solid var(--border-soft);
+    padding: 8px 10px; font-size: 11px;
+    color: var(--text-dim); border-radius: 6px; line-height: 1.6;
+    font-variant-numeric: tabular-nums;
   }
-  #status-bar .mode { color: #0f0; font-weight: bold; }
-  #status-bar .erase-mode { color: #f66; font-weight: bold; }
+  #status-bar .mode { color: var(--mint); font-weight: 600; }
+  #status-bar .erase-mode { color: var(--coral); font-weight: 600; }
 
-  #region-list { flex: 1; overflow-y: auto; min-height: 0; }
+  #region-list { flex: 1 0 auto; min-height: 0; }
+
+  .save-hint {
+    font-size: 10px; color: var(--text-muted); margin-top: 4px;
+    font-family: ui-monospace, monospace; word-break: break-all;
+  }
 
   #instructions {
-    font-size: 10px; color: #555; line-height: 1.6; border-top: 1px solid #333;
-    padding-top: 10px; margin-top: auto;
+    font-size: 11px; color: var(--text-dim); line-height: 1.7;
+    border-top: 1px solid var(--border-soft); padding-top: 12px; margin-top: auto;
   }
+  #instructions .group { margin-bottom: 8px; }
+  #instructions .group-title {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-muted); font-weight: 600; margin-bottom: 4px;
+  }
+  #instructions .row { display: flex; justify-content: space-between; gap: 8px; }
   #instructions kbd {
-    background: #333; padding: 1px 5px; border-radius: 2px; color: #0f0;
-    border: 1px solid #444; font-size: 10px;
+    background: var(--bg-input); padding: 1px 6px; border-radius: 4px;
+    color: var(--lavender); border: 1px solid var(--border);
+    font-family: ui-monospace, monospace; font-size: 10px;
   }
 
   .toast {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    background: #0f0; color: #000; padding: 10px 24px; border-radius: 4px;
-    font-family: monospace; font-size: 13px; font-weight: bold;
-    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 1000;
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--bg-card); color: var(--text);
+    border: 1px solid var(--mint);
+    padding: 10px 20px; border-radius: 8px;
+    font: inherit; font-size: 12px; font-weight: 500;
+    opacity: 0; transition: all 0.25s ease;
+    pointer-events: none; z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(168,230,207,0.1);
   }
-  .toast.visible { opacity: 1; }
+  .toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 </style>
 </head>
@@ -127,68 +236,75 @@
 </div>
 
 <div id="sidebar">
-  <div style="font-size:14px;color:#fff;font-weight:bold;">Inklet</div>
+  <div class="brand">Inklet</div>
 
-  <div id="display-toggles" style="display:none;">
-    <div class="section-title">Display</div>
+  <div id="display-toggles" class="section" style="display:none;">
+    <div class="section-title">Image</div>
     <div class="toggle-row">
-      <label>Remove Background</label>
+      <label>Remove background</label>
       <label class="toggle-switch">
         <input type="checkbox" id="toggle-remove-bg">
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <label>Invert</label>
+      <label>Invert tones</label>
       <label class="toggle-switch">
         <input type="checkbox" id="toggle-invert">
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <label>Color Mode</label>
-      <select id="color-mode-select" class="color-mode-select">
+      <label>Color mode</label>
+      <select id="color-mode-select" class="select-input">
         <option value="color">Color</option>
         <option value="grayscale">Grayscale</option>
-        <option value="none">None</option>
+        <option value="none">Mono</option>
       </select>
     </div>
   </div>
 
-  <div class="section-title">Brush Size</div>
-  <div class="brush-row">
-    <label>Size</label>
-    <input type="range" id="brush-size" min="1" max="15" value="1">
-    <span class="val" id="brush-val">1</span>
+  <div class="section">
+    <div class="section-title">Brush</div>
+    <div class="brush-row">
+      <input type="range" id="brush-size" min="1" max="15" value="1">
+      <span class="val" id="brush-val">1</span>
+    </div>
   </div>
 
-  <div class="section-title">Regions</div>
-  <div id="region-list"></div>
-  <button class="new-region-btn" id="new-region-btn">+ New Region</button>
+  <div class="section">
+    <div class="section-title">Regions</div>
+    <div id="region-list"></div>
+    <button class="new-region-btn" id="new-region-btn">+ Add region</button>
+  </div>
 
-  <div class="section-title">Save Path</div>
-  <input type="text" id="save-path" value="ascii-config.json"
-    style="width:100%;background:#222;color:#0f0;border:1px solid #444;padding:6px 8px;
-    font-family:monospace;font-size:11px;border-radius:3px;outline:none;cursor:text;">
-  <div style="font-size:9px;color:#555;margin-top:2px;" id="save-path-hint"></div>
+  <div class="section">
+    <div class="section-title">Save to</div>
+    <input type="text" id="save-path" class="text-input" value="ascii-config.json">
+    <div class="save-hint" id="save-path-hint"></div>
+  </div>
 
-  <button class="export-btn" id="export-btn">Save to Project</button>
+  <button class="export-btn" id="export-btn">Save to project</button>
 
   <div id="status-bar">
-    Cursor: -<br>
-    Mode: <span class="mode">idle</span>
+    Cursor: —<br>
+    Tool: <span class="mode">paint</span>
   </div>
 
   <div id="instructions">
-    <strong style="color:#999">Draw</strong><br>
-    <span style="color:#0f0">Left click</span> + drag to draw<br>
-    <span style="color:#f66">Right click</span> to erase<br>
-    Closed outline → auto-fills interior<br><br>
-    <strong style="color:#999">Shortcuts</strong><br>
-    <kbd>B</kbd> paint tool &nbsp; <kbd>E</kbd> erase tool<br>
-    <kbd>F</kbd> fill inside outline<br>
-    <kbd>Ctrl+Z</kbd> undo<br>
-    <kbd>[</kbd> / <kbd>]</kbd> brush size<br>
+    <div class="group">
+      <div class="group-title">Drawing</div>
+      Left click + drag to paint<br>
+      Right click to erase<br>
+      Closed outlines auto-fill
+    </div>
+    <div class="group">
+      <div class="group-title">Shortcuts</div>
+      <div class="row"><span>Paint / erase</span><span><kbd>B</kbd> <kbd>E</kbd></span></div>
+      <div class="row"><span>Fill outline</span><kbd>F</kbd></div>
+      <div class="row"><span>Undo</span><kbd>Ctrl+Z</kbd></div>
+      <div class="row"><span>Brush size</span><span><kbd>[</kbd> <kbd>]</kbd></span></div>
+    </div>
   </div>
 </div>
 
@@ -207,7 +323,19 @@
   let { cols, rows, chars, palette, colorIndices } = data;
 
   // --- Constants ---
-  const REGION_COLORS = ['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#ffeaa7','#dda0dd','#98d8c8','#f7dc6f'];
+  // Pastel palette — soft, friendly, distinct
+  const REGION_COLORS = [
+    '#ffb3c6', // rose
+    '#a8e6cf', // mint
+    '#c8b6ff', // lavender
+    '#ffd6a5', // peach
+    '#a8dadc', // sky
+    '#ffc8dd', // bubblegum
+    '#bde0fe', // periwinkle
+    '#fdffb6', // butter
+    '#caffbf', // honeydew
+    '#ffadad', // coral
+  ];
 
   // --- State ---
   let regions = [];          // { id, label, color, cells: Set<"r,c"> }
@@ -345,6 +473,14 @@
     measureCharSize();
     overlayLoop();
   });
+
+  // Webfonts load async — re-measure once they swap in, otherwise cell metrics are stale
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+      measureCharSize();
+      scheduleOverlayRedraw();
+    });
+  }
 
   window.addEventListener('resize', () => {
     gridEl.style.fontSize = calcFontSize() + 'px';
@@ -632,8 +768,25 @@
     const span = spanGrid[0]?.[0];
     if (!span) return;
     const rect = span.getBoundingClientRect();
-    charW = rect.width;
-    charH = rect.height;
+    // Width: glyph advance — measure across multiple cells in a row to average out subpixel error
+    const lastInRow = spanGrid[0][spanGrid[0].length - 1];
+    if (lastInRow && spanGrid[0].length > 1) {
+      const lastRect = lastInRow.getBoundingClientRect();
+      charW = (lastRect.right - rect.left) / spanGrid[0].length;
+    } else {
+      charW = rect.width;
+    }
+    // Height: must be the *line spacing* (fontSize * line-height), not the glyph box.
+    // Measure by diffing the top of row 0 and row 1 — otherwise highlights drift down per row.
+    const row1Span = spanGrid[1]?.[0];
+    if (row1Span) {
+      charH = row1Span.getBoundingClientRect().top - rect.top;
+    } else {
+      // Fallback: derive from computed line-height
+      const cs = window.getComputedStyle(gridEl);
+      const lh = parseFloat(cs.lineHeight);
+      charH = isNaN(lh) ? rect.height : lh;
+    }
     // Size canvas to match the grid
     const preRect = gridEl.getBoundingClientRect();
     overlayCanvas.width = preRect.width;
@@ -677,8 +830,8 @@
     if (cursorRow >= 0) {
       const half = Math.floor(brushSize / 2);
       const erasing = isErasing || (tool === 'erase' && !isPainting);
-      ctx.strokeStyle = erasing ? 'rgba(255,100,100,0.6)' : 'rgba(0,255,0,0.6)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = erasing ? 'rgba(255,180,162,0.85)' : 'rgba(168,230,207,0.85)';
+      ctx.lineWidth = 1.5;
       ctx.strokeRect(
         (cursorCol - half) * charW,
         (cursorRow - half) * charH,
@@ -747,8 +900,8 @@
     regionListEl.innerHTML = '';
     if (regions.length === 0) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'font-size:11px;color:#555;padding:12px 0;text-align:center;';
-      empty.textContent = 'No regions yet. Click "+ New Region" to start.';
+      empty.className = 'empty-state';
+      empty.textContent = 'No regions yet. Add one to start painting.';
       regionListEl.appendChild(empty);
       return;
     }
@@ -774,7 +927,8 @@
 
       const del = document.createElement('button');
       del.className = 'delete-btn';
-      del.textContent = 'x';
+      del.textContent = '×';
+      del.title = 'Delete region';
       del.addEventListener('click', (e) => { e.stopPropagation(); deleteRegion(region.id); });
 
       card.appendChild(swatch);
@@ -788,17 +942,17 @@
 
   // --- New Region Button ---
   document.getElementById('new-region-btn').addEventListener('click', () => {
-    const label = window.prompt('Region label:', 'Region ' + (regions.length + 1));
+    const label = window.prompt('Name this region:', 'Region ' + (regions.length + 1));
     if (label === null) return;
     createRegion(label || 'Untitled');
-    showToast('Created "' + (label || 'Untitled') + '" — left click + drag to paint');
+    showToast('"' + (label || 'Untitled') + '" added — drag to paint');
   });
 
   function updateStatusTool() {
     const toolSpan = tool === 'erase'
       ? '<span class="erase-mode">erase</span>'
       : '<span class="mode">paint</span>';
-    statusBar.innerHTML = 'Cursor: -<br>Tool: ' + toolSpan;
+    statusBar.innerHTML = 'Cursor: —<br>Tool: ' + toolSpan;
   }
 
   // Brush cursor is drawn on the canvas overlay — no DOM element needed
@@ -923,7 +1077,7 @@
       isErasing = false;
       lastPaintRow = -1;
     }
-    statusBar.innerHTML = 'Cursor: -<br>Mode: idle';
+    statusBar.innerHTML = 'Cursor: —<br>Tool: <span class="mode">idle</span>';
   });
 
   // --- Keyboard shortcuts ---
@@ -977,7 +1131,7 @@
         applyAllOverlays();
         updateRegionMeta();
       } else {
-        showToast('Nothing to fill — draw a closed outline first');
+        showToast('Nothing to fill. Draw a closed outline first');
       }
       return;
     }
