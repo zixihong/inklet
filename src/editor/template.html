@@ -6,7 +6,7 @@
 <title>Inklet - Region Editor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fira+Code:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Roboto+Mono:wght@400;500&family=Inconsolata:wght@400;500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #1c1a26;
@@ -74,17 +74,6 @@
   .section-title {
     font-size: 10px; color: var(--text-muted);
     text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600;
-  }
-
-  /* Brush size slider */
-  .brush-row { display: flex; align-items: center; gap: 10px; }
-  .brush-row input[type=range] {
-    flex: 1; accent-color: var(--mint);
-    height: 4px;
-  }
-  .brush-row .val {
-    font-size: 12px; color: var(--mint); min-width: 20px;
-    text-align: right; font-variant-numeric: tabular-nums; font-weight: 600;
   }
 
   /* Region cards */
@@ -265,11 +254,15 @@
   </div>
 
   <div class="section">
-    <div class="section-title">Brush</div>
-    <div class="brush-row">
-      <input type="range" id="brush-size" min="1" max="15" value="1">
-      <span class="val" id="brush-val">1</span>
-    </div>
+    <div class="section-title">Font</div>
+    <select id="font-select" class="select-input" style="width:100%;">
+      <option value="JetBrains Mono">JetBrains Mono</option>
+      <option value="Fira Code">Fira Code</option>
+      <option value="IBM Plex Mono">IBM Plex Mono</option>
+      <option value="Roboto Mono">Roboto Mono</option>
+      <option value="Inconsolata">Inconsolata (narrow)</option>
+      <option value="Courier Prime">Courier Prime (classic)</option>
+    </select>
   </div>
 
   <div class="section">
@@ -300,10 +293,10 @@
     </div>
     <div class="group">
       <div class="group-title">Shortcuts</div>
-      <div class="row"><span>Paint / erase</span><span><kbd>B</kbd> <kbd>E</kbd></span></div>
+      <div class="row"><span>Paint / erase</span><span><kbd>P</kbd> / <kbd>E</kbd></span></div>
       <div class="row"><span>Fill outline</span><kbd>F</kbd></div>
-      <div class="row"><span>Undo</span><kbd>Ctrl+Z</kbd></div>
-      <div class="row"><span>Brush size</span><span><kbd>[</kbd> <kbd>]</kbd></span></div>
+      <div class="row"><span>Undo</span><span><kbd>Ctrl</kbd> + <kbd>Z</kbd></span></div>
+      <div class="row"><span>Brush size</span><span><kbd>Ctrl</kbd> + <kbd>Scroll</kbd></span></div>
     </div>
   </div>
 </div>
@@ -360,8 +353,6 @@
   const regionListEl = document.getElementById('region-list');
   const statusBar = document.getElementById('status-bar');
   const toastEl = document.getElementById('toast');
-  const brushSizeInput = document.getElementById('brush-size');
-  const brushValEl = document.getElementById('brush-val');
 
   // --- Font scaling ---
   function calcFontSize() {
@@ -468,6 +459,24 @@
   toggleInvert.addEventListener('change', regenerate);
   colorModeSelect.addEventListener('change', regenerate);
 
+  // Font picker — swap the grid font and re-measure cell metrics once the font is ready
+  const fontSelect = document.getElementById('font-select');
+  function applyFont(family) {
+    const stack = '"' + family + '", ui-monospace, Menlo, Consolas, monospace';
+    gridEl.style.fontFamily = stack;
+    const remeasure = () => {
+      gridEl.style.fontSize = calcFontSize() + 'px';
+      measureCharSize();
+      scheduleOverlayRedraw();
+    };
+    if (document.fonts && document.fonts.load) {
+      document.fonts.load('16px "' + family + '"').then(remeasure).catch(remeasure);
+    } else {
+      requestAnimationFrame(remeasure);
+    }
+  }
+  fontSelect.addEventListener('change', () => applyFont(fontSelect.value));
+
   // Start canvas overlay system after first paint
   requestAnimationFrame(() => {
     measureCharSize();
@@ -506,10 +515,18 @@
   function activeRegion() { return getRegion(activeRegionId); }
 
   // --- Brush ---
-  brushSizeInput.addEventListener('input', () => {
-    brushSize = parseInt(brushSizeInput.value, 10);
-    brushValEl.textContent = brushSize;
-  });
+  function setBrushSize(n) {
+    brushSize = Math.max(1, Math.min(15, n));
+    showToast('Brush size: ' + brushSize);
+    scheduleOverlayRedraw();
+  }
+
+  // Ctrl + scroll wheel to resize brush
+  document.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    setBrushSize(brushSize + (e.deltaY < 0 ? 1 : -1));
+  }, { passive: false });
 
   function getBrushCells(row, col) {
     const cells = [];
@@ -1093,18 +1110,8 @@
     }
 
     // Brush size
-    if (e.key === '[') {
-      brushSize = Math.max(1, brushSize - 1);
-      brushSizeInput.value = brushSize;
-      brushValEl.textContent = brushSize;
-      scheduleOverlayRedraw();
-    }
-    if (e.key === ']') {
-      brushSize = Math.min(15, brushSize + 1);
-      brushSizeInput.value = brushSize;
-      brushValEl.textContent = brushSize;
-      scheduleOverlayRedraw();
-    }
+    if (e.key === '[') setBrushSize(brushSize - 1);
+    if (e.key === ']') setBrushSize(brushSize + 1);
 
     // E = erase tool, B = paint tool
     if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
@@ -1113,7 +1120,7 @@
       updateStatusTool();
       return;
     }
-    if (e.key === 'b' && !e.ctrlKey && !e.metaKey) {
+    if (e.key === 'p' && !e.ctrlKey && !e.metaKey) {
       tool = 'paint';
       showToast('Paint tool');
       updateStatusTool();
