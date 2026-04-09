@@ -69,6 +69,28 @@ function Hero() {
 }
 ```
 
+> **Vite users:** Vite's built-in JSON plugin generates named exports for every top-level key of an imported JSON file, which can fail or balloon build output on large configs (multi-MB ASCII data). If you hit that, you have two clean options:
+>
+> **Option 1 — tell Vite to skip named-export transformation.** In `vite.config.ts`:
+> ```ts
+> export default defineConfig({
+>   json: { stringify: true },
+> })
+> ```
+> With `stringify: true`, the JSON is inlined as a single string and parsed once at runtime — no per-key named exports, much smaller bundle.
+>
+> **Option 2 — serve the config as a static asset.** Drop `ascii-config.json` into `public/` and fetch it at runtime:
+> ```tsx
+> const [config, setConfig] = useState(null)
+> useEffect(() => {
+>   fetch('/ascii-config.json').then(r => r.json()).then(setConfig)
+> }, [])
+> if (!config) return null
+> return <AsciiImage config={config} />
+> ```
+>
+> Next.js, Webpack, CRA, Parcel, esbuild, and Rollup all return JSON imports as a plain default export, so `import config from './ascii-config.json'` just works on those without any config tweaks.
+
 ## CLI Reference
 
 ```
