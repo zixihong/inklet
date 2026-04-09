@@ -1,6 +1,6 @@
 {
   "name": "inklet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turn images into interactive ASCII art",
   "type": "module",
   "exports": {
