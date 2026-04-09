@@ -14,7 +14,7 @@
     }
   },
   "bin": {
-    "inklet": "./dist/bin/cli.js"
+    "inklet": "dist/bin/cli.js"
   },
   "files": [
     "dist",
