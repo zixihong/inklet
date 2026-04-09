@@ -6,15 +6,6 @@ Inklet converts raster images (PNG, JPG, WebP, etc.) into rich ASCII art with fu
 
 <!-- TODO: demo video -->
 
-## Why Inklet
-
-ASCII art is usually static and monochrome. Inklet makes it dynamic:
-
-- **Full color** — every character retains the color of the original pixel
-- **Interactive regions** — paint areas in the visual editor, then hook up hover effects and click handlers in your app
-- **Visual editor** — preview your ASCII art in the browser, toggle background removal and color modes live, paint regions with a brush tool, and export when you're happy
-- **Compact output** — run-length encoded regions and a deduplicated color palette keep the JSON small
-
 ## Install
 
 ```bash
@@ -22,6 +13,15 @@ npm install inklet
 ```
 
 Requires Node.js >= 18.3.0. React >= 18 is an optional peer dependency (only needed if you use `inklet/react`).
+
+## Why Inklet
+
+ASCII art is usually static and monochrome. Inklet makes it dynamic:
+
+- **Full color** — every character retains the color of the original pixel
+- **Interactive regions** — paint areas in the visual editor, then hook up hover effects and click handlers in your app
+- **Visual editor** — preview your ASCII art in the browser, toggle background removal and color modes live, swap fonts, paint regions with a brush tool, and export when you're happy
+- **Compact output** — run-length encoded regions and a deduplicated color palette keep the JSON small
 
 ## Quick Start
 
@@ -36,19 +36,20 @@ This opens the visual editor in your browser.
 ### 2. Tweak settings in the editor
 
 The sidebar has live toggles for:
-- **Remove Background** — strips bright/dark pixels so only the subject remains
-- **Invert** — flips the luminance-to-character mapping
-- **Color Mode** — switch between color, grayscale, and monochrome
+- **Remove background** — strips bright/dark pixels so only the subject remains
+- **Invert tones** — flips the luminance-to-character mapping
+- **Color mode** — switch between color, grayscale, and mono
+- **Font** — pick from JetBrains Mono, Fira Code, IBM Plex Mono, Roboto Mono, Inconsolata, or Courier Prime
 
 Changes re-render instantly. No need to re-run the CLI.
 
 ### 3. Paint regions
 
-Click **+ New Region**, give it a label (e.g. "Logo", "Face"), then hold **Shift** and drag to paint characters into that region. These regions are what make the ASCII art interactive later.
+Click **+ Add region**, give it a label (e.g. "Logo", "Face"), then **left-click and drag** to paint characters into that region. Right-click to erase. Draw a closed outline and Inklet auto-fills the interior. These regions are what make the ASCII art interactive later.
 
 ### 4. Export
 
-Click **Save to Project**. You get an `ascii-config.json` file.
+Click **Save to project**. You get an `ascii-config.json` file in your output directory.
 
 ### 5. Render in React
 
@@ -105,31 +106,46 @@ inklet photo.png --print -o ascii-data.json
 
 ## Editor
 
-The editor launches automatically when you run `inklet` without `--save` or `--print`. It's a local web UI served from a temporary HTTP server.
+The editor launches automatically when you run `inklet` without `--save` or `--print`. It's a local web UI served from a temporary HTTP server with a soft pastel theme designed to stay out of your way.
 
-### Display toggles
+> Note: the editor loads its display fonts from Google Fonts, so the first launch needs an internet connection. Subsequent loads use the browser cache, and missing fonts fall back to your system monospace.
 
-Toggle **Remove Background**, **Invert**, and **Color Mode** in the sidebar. Each change re-generates the ASCII art server-side using the original image — what you see is what gets exported.
+### Image controls
+
+The **Image** section in the sidebar has live toggles:
+- **Remove background** — strips bright/dark pixels so only the subject remains
+- **Invert tones** — flips the luminance-to-character mapping
+- **Color mode** — color, grayscale, or mono
+
+Each change re-renders the ASCII art server-side using the original image, so what you see is what you export.
+
+### Font
+
+Pick the monospace font used to render the ASCII grid. Different fonts have different glyph aspect ratios — narrower fonts like **Inconsolata** preserve more vertical detail, wider fonts like **JetBrains Mono** (the default) feel more spacious. Try a few; it changes the whole look.
 
 ### Region painting
 
 Regions let you mark areas of the ASCII art as interactive. In your app, you can attach hover effects and click handlers to each region.
 
+**Workflow:** click **+ Add region**, name it, then drag on the grid. Draw a closed outline and Inklet auto-fills the interior — the fill even patches small gaps in your outline. Repeat for each interactive area.
+
 | Action | Control |
 |---|---|
-| Paint | Hold **Shift** + drag |
-| Erase | Hold **X** + drag |
-| Brush size | **[** / **]** or slider |
-| Fill outline | **F** (after drawing a closed shape) |
-| Select region | Click sidebar card or press **1-8** |
-| Delete region | **Delete** / **Backspace** |
-| Undo | **Ctrl+Z** |
+| Paint | **Left-click** + drag |
+| Erase | **Right-click** + drag |
+| Switch to paint tool | <kbd>P</kbd> |
+| Switch to erase tool | <kbd>E</kbd> |
+| Fill closed outline | <kbd>F</kbd> |
+| Brush size | <kbd>Ctrl</kbd>+scroll, or <kbd>[</kbd> / <kbd>]</kbd> |
+| Undo | <kbd>Ctrl</kbd>+<kbd>Z</kbd> |
+| Select region | Click its card in the sidebar |
+| Delete region | Click the **×** on its card |
 
-Draw a closed outline and Inklet auto-fills the interior. The fill also patches small gaps in the outline.
+The cursor crosshair on the grid shows the current brush footprint, sized to match what you'll actually paint.
 
 ### Export
 
-Click **Save to Project**. The save path is editable in the sidebar. The exported `ascii-config.json` contains both the ASCII data and region definitions.
+Click **Save to project**. The save path is editable in the sidebar — by default it writes `ascii-config.json` to the directory you ran `inklet` from (or the `-d` directory if you passed one). The file contains both the ASCII data and the region definitions.
 
 ## Output Format
 

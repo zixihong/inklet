@@ -20,12 +20,8 @@
     --text-muted: #6b6585;
 
     --mint: #a8e6cf;
-    --mint-soft: #7fd1b3;
     --lavender: #c8b6ff;
-    --peach: #ffd6a5;
-    --rose: #ffb3c6;
     --coral: #ffb4a2;
-    --sky: #a8dadc;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -294,7 +290,7 @@
     <div class="group">
       <div class="group-title">Shortcuts</div>
       <div class="row"><span>Paint / erase</span><span><kbd>P</kbd> / <kbd>E</kbd></span></div>
-      <div class="row"><span>Fill outline</span><kbd>F</kbd></div>
+      <div class="row"><span>Fill outline</span><span><kbd>F</kbd></span></div>
       <div class="row"><span>Undo</span><span><kbd>Ctrl</kbd> + <kbd>Z</kbd></span></div>
       <div class="row"><span>Brush size</span><span><kbd>Ctrl</kbd> + <kbd>Scroll</kbd></span></div>
     </div>
@@ -500,10 +496,15 @@
   // --- Utilities ---
   function ck(r, c) { return r + ',' + c; }
 
+  let toastTimer = null;
   function showToast(msg) {
     toastEl.textContent = msg;
     toastEl.classList.add('visible');
-    setTimeout(() => toastEl.classList.remove('visible'), 2000);
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl.classList.remove('visible');
+      toastTimer = null;
+    }, 2000);
   }
 
   function getSpanRC(target) {
@@ -521,11 +522,23 @@
     scheduleOverlayRedraw();
   }
 
-  // Ctrl + scroll wheel to resize brush
-  document.addEventListener('wheel', (e) => {
+  // Ctrl + scroll wheel to resize brush — scoped to the grid only so browser zoom
+  // still works elsewhere on the page. Accumulate deltaY so high-res trackpads
+  // don't blow through the entire range in one gesture.
+  let wheelDeltaAccum = 0;
+  const WHEEL_STEP = 80; // ~one notch on most mice; trackpad gestures need accumulation
+  gridEl.addEventListener('wheel', (e) => {
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
-    setBrushSize(brushSize + (e.deltaY < 0 ? 1 : -1));
+    wheelDeltaAccum += e.deltaY;
+    while (wheelDeltaAccum <= -WHEEL_STEP) {
+      setBrushSize(brushSize + 1);
+      wheelDeltaAccum += WHEEL_STEP;
+    }
+    while (wheelDeltaAccum >= WHEEL_STEP) {
+      setBrushSize(brushSize - 1);
+      wheelDeltaAccum -= WHEEL_STEP;
+    }
   }, { passive: false });
 
   function getBrushCells(row, col) {
@@ -1100,7 +1113,7 @@
   // --- Keyboard shortcuts ---
   document.addEventListener('keydown', (e) => {
     const tag = e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
     // Undo
     if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
@@ -1113,7 +1126,7 @@
     if (e.key === '[') setBrushSize(brushSize - 1);
     if (e.key === ']') setBrushSize(brushSize + 1);
 
-    // E = erase tool, B = paint tool
+    // P = paint tool, E = erase tool
     if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
       tool = 'erase';
       showToast('Erase tool');
