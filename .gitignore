@@ -26,3 +26,6 @@ coverage/
 # Local test artifacts
 ascii-config.json
 test.jpg
+
+# Temporary demo sandbox
+sandbox/

@@ -1,10 +1,8 @@
 # Inklet
 
-Turn any image into interactive, colored ASCII art for the web.
+**Ship interactive ASCII art, fast.** Convert an image from the CLI, paint regions over it in a pastel visual editor with live preview, and drop the JSON into React — every region becomes clickable, hoverable, and independently styleable. Perfect for ASCII hero sections, clickable diagrams, interactive portraits, or anywhere a static `<pre>` block isn't enough.
 
-Inklet converts raster images (PNG, JPG, WebP, etc.) into rich ASCII art with full color, then gives you a visual editor to define interactive regions. Drop the output into a React component and your ASCII art becomes clickable, hoverable, and alive.
-
-<!-- TODO: demo video -->
+![Inklet demo — paint regions in the editor, drop the JSON into React, and every region becomes interactive](https://github.com/user-attachments/assets/b6492e54-8330-4246-b034-a1866c0237f4)
 
 ## Install
 
@@ -14,14 +12,12 @@ npm install inklet
 
 Requires Node.js >= 18.3.0. React >= 18 is an optional peer dependency (only needed if you use `inklet/react`).
 
-## Why Inklet
+## What you get
 
-ASCII art is usually static and monochrome. Inklet makes it dynamic:
-
-- **Full color** — every character retains the color of the original pixel
-- **Interactive regions** — paint areas in the visual editor, then hook up hover effects and click handlers in your app
-- **Visual editor** — preview your ASCII art in the browser, toggle background removal and color modes live, swap fonts, paint regions with a brush tool, and export when you're happy
-- **Compact output** — run-length encoded regions and a deduplicated color palette keep the JSON small
+- **A visual region editor** — pastel UI in your browser, live preview, six monospace fonts to try, auto-fill for closed outlines, undo, brush resize with Ctrl+scroll. This is where most of the work happens.
+- **A React component** — drop in the config, get hover effects, click handlers, per-region styling, and `onCharacterHover` / `onCharacterClick` for character-level control
+- **A CLI** for the image → ASCII conversion step, with live toggles for background removal, tone inversion, and color mode
+- **Full-color output as a bonus** — every character keeps the original pixel's color, and the palette is deduplicated so the JSON stays compact (run-length encoded regions + palette indexing)
 
 ## Quick Start
 
@@ -351,6 +347,10 @@ Pass a custom ramp string to `generateAscii({ characterSet: '...' })` or `--char
 4. **Region editing** — the visual editor renders the ASCII grid and lets you paint named regions over it. Regions are stored as run-length encoded cell ranges.
 
 5. **React rendering** — the `<AsciiImage>` component groups consecutive same-color, same-region characters into single `<span>` elements (reducing DOM nodes by ~10x), applies hover effects via inline styles with CSS transitions, and fires callbacks based on region membership.
+
+## Why Inklet exists
+
+Other tools turn images into ASCII. Inklet turns them into **UI** — regions you can hover, click, and react to in the browser. The missing piece has always been labeling which characters mean what, and that's a job AI can't do reliably. Inklet's visual editor makes the human step take a minute instead of a weekend.
 
 ## License
 
