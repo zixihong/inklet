@@ -42,7 +42,11 @@
   "author": "Bryan Hong",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zixihong/inklet.git"
+    "url": "git+https://github.com/zixihong/inklet.git"
+  },
+  "homepage": "https://github.com/zixihong/inklet#readme",
+  "bugs": {
+    "url": "https://github.com/zixihong/inklet/issues"
   },
   "license": "MIT",
   "dependencies": {
