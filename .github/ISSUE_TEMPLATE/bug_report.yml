@@ -1,0 +1,84 @@
+name: Bug report
+description: Something isn't working the way you expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug report! A few details up front make this much easier to investigate. Please fill in what you can — even a partial report is useful.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe what you did and what went wrong.
+      placeholder: |
+        I ran `npx inklet photo.png -w 100` and the editor opened, but the ASCII art rendered as all spaces.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: I expected to see the image rendered as colored ASCII characters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands, code, or actions you took. If possible, attach a minimal sample image.
+      placeholder: |
+        1. Run `npx inklet broken.png -w 100`
+        2. Editor opens at http://localhost:...
+        3. Grid shows all spaces
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does the bug appear?
+      multiple: true
+      options:
+        - CLI (the `inklet` command)
+        - Visual editor (the in-browser region editor)
+        - React component (`<AsciiImage>`)
+        - Library API (`generateAscii`, `segmentRegions`, etc.)
+        - Documentation / README
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: inklet version
+      description: Run `npm list inklet` or check your `package.json`.
+      placeholder: 0.1.2
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Run `node --version`.
+      placeholder: v20.11.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 14.4 / Ubuntu 22.04 / Windows 11 (WSL2)
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Logs, error messages, screenshots, or context that might help.

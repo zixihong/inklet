@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/zixihong/inklet#readme
+    about: Most questions are answered in the README.
+  - name: Quick question or discussion
+    url: https://github.com/zixihong/inklet/discussions
+    about: For open-ended questions, ideas, and casual chat (enable Discussions in repo Settings → Features first).

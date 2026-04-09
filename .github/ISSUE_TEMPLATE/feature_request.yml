@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a new feature, API change, or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! For non-trivial features, opening a discussion here *before* you write code helps make sure we're aligned on the approach. Small or experimental ideas are also very welcome.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the problem or use case in your own words. Don't worry about proposing a solution yet — focus on what you're trying to achieve.
+      placeholder: |
+        I'm rendering ASCII portraits and I want each region to have its own keyboard shortcut so users can navigate them without a mouse.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How do you imagine it working?
+      description: A rough sketch of the API, UI, or behavior. Code snippets are welcome but not required.
+      placeholder: |
+        Maybe a `keyboardNavigable` prop on `<AsciiImage>` that wires up Tab to cycle through regions and Enter to fire `onRegionClick`. Or a separate hook `useAsciiKeyboard()` that returns the focus state.
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which part of inklet does this affect?
+      multiple: true
+      options:
+        - CLI
+        - Visual editor
+        - React component (`<AsciiImage>`)
+        - Library API
+        - Output format / config file shape
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Other approaches you thought about, or workarounds you're using today.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Mockups, links to similar features in other tools, prior art, etc.
