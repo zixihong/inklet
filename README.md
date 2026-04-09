@@ -2,9 +2,9 @@
 
 **Ship interactive ASCII art, fast.** Convert an image from the CLI, paint regions over it in a pastel visual editor with live preview, and drop the JSON into React — every region becomes clickable, hoverable, and independently styleable. Perfect for ASCII hero sections, clickable diagrams, interactive portraits, or anywhere a static `<pre>` block isn't enough.
 
-![Inklet rendering ASCII art of two figs in React, with one region hovered — its characters replaced by the label "FIG 2" and a caption below reading "ficus religiosa — the sacred fig. older than the wall behind it."](https://github.com/user-attachments/assets/1b4517d5-43aa-41cc-a9cb-d74d3e9b0741)
+![Inklet rendering ASCII art of two figs in React, with one region hovered — its characters replaced by the label "FIG 2" and a caption below reading "ficus religiosa — the sacred fig. older than the wall behind it."](https://raw.githubusercontent.com/zixihong/inklet/main/docs/fig-intro.png)
 
-![The Inklet visual editor in the browser, showing two regions ("fig 1" and "fig 2") painted in pastel coral and mint over an ASCII rendering of two figs. The pastel sidebar has image toggles, a font picker, the region list, and save controls.](https://github.com/user-attachments/assets/8df9dda4-613e-41c3-a154-1f797a85b8f9)
+![The Inklet visual editor in the browser, showing two regions ("fig 1" and "fig 2") painted in pastel coral and mint over an ASCII rendering of two figs. The pastel sidebar has image toggles, a font picker, the region list, and save controls.](https://raw.githubusercontent.com/zixihong/inklet/main/docs/fig-creation.png)
 
 ## Install
 
